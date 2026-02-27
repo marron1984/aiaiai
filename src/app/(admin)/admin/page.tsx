@@ -4,7 +4,7 @@ import { triggerManualIngest } from "@/lib/actions";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  const [sourceCount, articleCount, publishedCount, draftCount, jobRunCount, recentJobs] =
+  const [sourceCount, articleCount, publishedCount, draftCount, , recentJobs] =
     await Promise.all([
       prisma.source.count(),
       prisma.article.count(),

@@ -12,7 +12,7 @@ type Props = { searchParams: Promise<{ q?: string; product?: string; level?: str
 export const dynamic = "force-dynamic";
 
 export default async function SearchPage({ searchParams }: Props) {
-  const { q, product, level } = await searchParams;
+  const { q, product } = await searchParams;
 
   const articles = q
     ? await prisma.article.findMany({

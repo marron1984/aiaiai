@@ -25,14 +25,28 @@ export default async function HomePage() {
   return (
     <div>
       {/* ヒーロー */}
-      <section className="mb-12 text-center">
-        <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">
+      <section className="mb-12 rounded-2xl bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-6 py-12 text-center">
+        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 md:text-5xl">
           {SITE_NAME}
         </h1>
-        <p className="mt-3 text-lg text-gray-600">{SITE_DESCRIPTION}</p>
-        <p className="mt-2 text-sm text-gray-400">
+        <p className="mt-4 text-lg font-medium text-gray-700 md:text-xl">{SITE_DESCRIPTION}</p>
+        <p className="mt-3 text-sm text-gray-500">
           公式一次情報を中心に収集・重複統合・実務者向け要約で「読む価値順」に提示
         </p>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <Link
+            href="/latest"
+            className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+          >
+            最新記事を見る
+          </Link>
+          <Link
+            href="/search"
+            className="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          >
+            検索する
+          </Link>
+        </div>
       </section>
 
       {/* プロダクト別ナビ */}
