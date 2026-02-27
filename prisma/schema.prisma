@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== ソース定義 =====
+model Source {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  type        SourceType
+  url         String
+  feedUrl     String?
+  frequency   FetchFrequency @default(DAILY)
+  trustScore  Int      @default(80) // 0-100
+  isActive    Boolean  @default(true)
+  legalNotes  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rawItems    RawItem[]
+  jobRuns     JobRun[]
+
+  @@index([type])
+  @@index([isActive])
+}
+
+enum SourceType {
+  OFFICIAL
+  RSS
+  GITHUB
+  X
+}
+
+enum FetchFrequency {
+  HOURLY
+  DAILY
+  WEEKLY
+}
+
+// ===== ジョブ実行管理 =====
+model JobRun {
+  id           String    @id @default(cuid())
+  sourceId     String
+  status       JobStatus @default(PENDING)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  itemsFetched Int       @default(0)
+  error        String?
+  createdAt    DateTime  @default(now())
+
+  source       Source    @relation(fields: [sourceId], references: [id])
+  rawItems     RawItem[]
+
+  @@index([sourceId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+// ===== 取得物（生データ） =====
+model RawItem {
+  id            String    @id @default(cuid())
+  sourceId      String
+  jobRunId      String?
+  canonicalUrl  String
+  title         String
+  content       String?
+  contentHash   String?
+  publishedAt   DateTime?
+  fetchedAt     DateTime  @default(now())
+  rawJson       Json?
+
+  source        Source    @relation(fields: [sourceId], references: [id])
+  jobRun        JobRun?  @relation(fields: [jobRunId], references: [id])
+  topicCluster  TopicCluster? @relation(fields: [topicClusterId], references: [id])
+  topicClusterId String?
+
+  // 代表記事として選ばれている TopicCluster
+  representativeOf TopicCluster[] @relation("Representative")
+
+  @@unique([canonicalUrl])
+  @@index([sourceId])
+  @@index([topicClusterId])
+  @@index([publishedAt])
+  @@index([contentHash])
+}
+
+// ===== 重複統合（Topic Cluster） =====
+model TopicCluster {
+  id                     String    @id @default(cuid())
+  clusterKey             String    @unique
+  representativeRawItemId String?
+  labels                 String[]
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  rawItems               RawItem[]
+  representativeRawItem  RawItem?  @relation("Representative", fields: [representativeRawItemId], references: [id])
+  articles               Article[]
+
+  @@index([clusterKey])
+}
+
+// ===== 公開記事 =====
+model Article {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  summary3        String        // 3行要約
+  summaryLong     String?       // 詳細要約
+  whatChanged     String?       // 何が新しいか
+  whoImpacted     String?       // 誰に影響があるか
+  actions         String?       // 実務でどう使えるか
+  recommendation  Recommendation @default(MONITOR) // Try/Monitor/Ignore
+  sourceUrl       String        // 原典リンク
+  imageUrl        String?
+
+  // スコア
+  trustScore      Int           @default(50)  // 0-100
+  importanceScore Int           @default(50)
+  noveltyScore    Int           @default(50)
+  usefulnessScore Int           @default(50)
+  urgencyScore    Int           @default(50)
+  compositeScore  Float         @default(50)  // 合成スコア
+
+  status          ArticleStatus @default(DRAFT)
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  topicClusterId  String?
+  topicCluster    TopicCluster? @relation(fields: [topicClusterId], references: [id])
+
+  tags            ArticleTag[]
+  legalEvents     LegalEvent[]
+  auditLogs       AuditLog[]
+
+  @@index([status])
+  @@index([compositeScore])
+  @@index([publishedAt])
+  @@index([topicClusterId])
+}
+
+enum Recommendation {
+  TRY
+  MONITOR
+  IGNORE
+}
+
+enum ArticleStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  UNPUBLISHED
+  DELETED
+}
+
+// ===== タグ（多軸分類） =====
+model Tag {
+  id        String   @id @default(cuid())
+  axis      TagAxis
+  name      String
+  slug      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  articles  ArticleTag[]
+
+  @@index([axis])
+}
+
+enum TagAxis {
+  PRODUCT
+  THEME
+  LEVEL
+  USECASE
+}
+
+// ===== 記事-タグ多対多 =====
+model ArticleTag {
+  articleId String
+  tagId     String
+
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId])
+}
+
+// ===== 法務イベント =====
+model LegalEvent {
+  id          String          @id @default(cuid())
+  articleId   String
+  requestType LegalRequestType
+  status      LegalStatus     @default(PENDING)
+  notes       String?
+  requestedAt DateTime        @default(now())
+  actedAt     DateTime?
+
+  article     Article         @relation(fields: [articleId], references: [id])
+
+  @@index([articleId])
+  @@index([status])
+}
+
+enum LegalRequestType {
+  TAKEDOWN
+  CORRECTION
+  SOURCE_STOP
+}
+
+enum LegalStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+// ===== 監査ログ =====
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String   @default("system")
+  action    String
+  target    String
+  targetId  String?
+  diff      Json?
+  createdAt DateTime @default(now())
+
+  articleId String?
+  article   Article? @relation(fields: [articleId], references: [id])
+
+  @@index([createdAt])
+  @@index([target])
+  @@index([articleId])
+}
