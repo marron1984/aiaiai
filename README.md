@@ -32,34 +32,38 @@
 
 ## セットアップ
 
-### 前提条件
+### Vercelデプロイ手順
 
-- Node.js v20+
-- PostgreSQL
-- Git
+1. **GitHubリポジトリをVercelにインポート**
+2. **Vercel Postgresを追加**:
+   - Vercelダッシュボード → Storage → Create → Postgres
+   - プロジェクトにリンクすると環境変数（`POSTGRES_PRISMA_URL` 等）が自動設定される
+3. **マイグレーション実行**:
+   - Vercelダッシュボードの環境変数をローカルに取得するか、Vercel CLIで実行
+   ```bash
+   npx vercel env pull .env.local
+   npx prisma migrate deploy
+   npx prisma db seed
+   ```
+4. **デプロイ**: `git push` で自動デプロイ
 
-### 起動手順
+### 環境変数（Vercelダッシュボードで設定）
 
-```bash
-git clone <repo-url>
-cd aiaiai
-cp .env.example .env          # 環境変数を設定（DATABASE_URLなど）
-npm install
-npx prisma migrate dev        # DBマイグレーション
-npx prisma db seed            # シードデータ投入
-npm run dev                   # 開発サーバー起動（http://localhost:3000）
-```
+| 変数 | 説明 |
+|---|---|
+| `POSTGRES_PRISMA_URL` | Vercel Postgres自動設定 |
+| `POSTGRES_URL_NON_POOLING` | Vercel Postgres自動設定 |
+| `CRON_SECRET` | Cronエンドポイント認証用 |
+| `GITHUB_TOKEN` | GitHub API認証（オプション） |
+| `ADMIN_PASSWORD` | 管理画面認証 |
 
 ### 主要コマンド
 
 ```bash
-npm run dev          # 開発サーバー（Turbopack）
 npm run build        # プロダクションビルド
-npm run start        # プロダクション起動
 npm run test         # テスト実行
 npm run lint         # Linter
-npx prisma studio    # DB GUI
-npx prisma migrate dev  # マイグレーション
+npx prisma migrate deploy  # マイグレーション（本番）
 npx prisma db seed   # シードデータ投入
 ```
 
