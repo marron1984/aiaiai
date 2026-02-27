@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { triggerManualIngest } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,19 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">
-        管理ダッシュボード
-      </h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">
+          管理ダッシュボード
+        </h1>
+        <form action={triggerManualIngest}>
+          <button
+            type="submit"
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            手動収集を実行
+          </button>
+        </form>
+      </div>
 
       {/* 統計カード */}
       <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
