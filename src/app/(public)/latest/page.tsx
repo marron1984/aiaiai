@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ArticleCard } from "@/components/ArticleCard";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -10,20 +12,24 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function LatestPage() {
-  const articles = await prisma.article.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: { publishedAt: "desc" },
-    take: 30,
-    include: {
-      tags: { include: { tag: true } },
-    },
-  });
+  const { data: articles, error } = await safeQuery(
+    () =>
+      prisma.article.findMany({
+        where: { status: "PUBLISHED" },
+        orderBy: { publishedAt: "desc" },
+        take: 30,
+        include: { tags: { include: { tag: true } } },
+      }),
+    []
+  );
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold text-gray-900">最新記事</h1>
 
-      {articles.length === 0 ? (
+      {error && <DbErrorBanner />}
+
+      {articles.length === 0 && !error ? (
         <p className="text-gray-500">まだ記事がありません。</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">

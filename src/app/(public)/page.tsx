@@ -1,26 +1,32 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ArticleCard } from "@/components/ArticleCard";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
 import { SITE_NAME, SITE_DESCRIPTION } from "@/lib/constants";
+import { safeQuery } from "@/lib/safe-query";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const articles = await prisma.article.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: { compositeScore: "desc" },
-    take: 10,
-    include: {
-      tags: {
-        include: { tag: true },
-      },
-    },
-  });
+  const { data: articles, error: articlesError } = await safeQuery(
+    () =>
+      prisma.article.findMany({
+        where: { status: "PUBLISHED" },
+        orderBy: { compositeScore: "desc" },
+        take: 10,
+        include: { tags: { include: { tag: true } } },
+      }),
+    []
+  );
 
-  const productTags = await prisma.tag.findMany({
-    where: { axis: "PRODUCT" },
-    orderBy: { sortOrder: "asc" },
-  });
+  const { data: productTags } = await safeQuery(
+    () =>
+      prisma.tag.findMany({
+        where: { axis: "PRODUCT" },
+        orderBy: { sortOrder: "asc" },
+      }),
+    []
+  );
 
   return (
     <div>
@@ -49,20 +55,24 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {articlesError && <DbErrorBanner />}
+
       {/* プロダクト別ナビ */}
-      <section className="mb-8">
-        <div className="flex flex-wrap gap-2">
-          {productTags.map((tag) => (
-            <Link
-              key={tag.id}
-              href={`/products/${tag.slug}`}
-              className="rounded-full border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700"
-            >
-              {tag.name}
-            </Link>
-          ))}
-        </div>
-      </section>
+      {productTags.length > 0 && (
+        <section className="mb-8">
+          <div className="flex flex-wrap gap-2">
+            {productTags.map((tag) => (
+              <Link
+                key={tag.id}
+                href={`/products/${tag.slug}`}
+                className="rounded-full border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700"
+              >
+                {tag.name}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 注目記事 */}
       <section>
@@ -78,7 +88,7 @@ export default async function HomePage() {
           </Link>
         </div>
 
-        {articles.length === 0 ? (
+        {articles.length === 0 && !articlesError ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-12 text-center">
             <p className="text-gray-500">
               まだ記事がありません。管理画面からソースを追加して収集を開始してください。

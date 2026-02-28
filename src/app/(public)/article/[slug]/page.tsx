@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { RECOMMENDATION_LABELS, SITE_URL, SITE_NAME } from "@/lib/constants";
 import { getScoreRank } from "@/lib/score";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -9,7 +11,10 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const article = await prisma.article.findUnique({ where: { slug } });
+  const { data: article } = await safeQuery(
+    () => prisma.article.findUnique({ where: { slug } }),
+    null
+  );
   if (!article) return {};
   return {
     title: article.title,
@@ -30,17 +35,30 @@ export const dynamic = "force-dynamic";
 
 export default async function ArticlePage({ params }: Props) {
   const { slug } = await params;
-  const article = await prisma.article.findUnique({
-    where: { slug },
-    include: {
-      tags: { include: { tag: true } },
-      topicCluster: {
+  const { data: article, error } = await safeQuery(
+    () =>
+      prisma.article.findUnique({
+        where: { slug },
         include: {
-          rawItems: { include: { source: true }, take: 10 },
+          tags: { include: { tag: true } },
+          topicCluster: {
+            include: {
+              rawItems: { include: { source: true }, take: 10 },
+            },
+          },
         },
-      },
-    },
-  });
+      }),
+    null
+  );
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <h1 className="mb-6 text-2xl font-bold text-gray-900">記事</h1>
+        <DbErrorBanner />
+      </div>
+    );
+  }
 
   if (!article || article.status === "DELETED") {
     notFound();

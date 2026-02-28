@@ -1,17 +1,25 @@
 import { prisma } from "@/lib/prisma";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminJobsPage() {
-  const jobs = await prisma.jobRun.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: { source: true },
-  });
+  const { data: jobs, error } = await safeQuery(
+    () =>
+      prisma.jobRun.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: { source: true },
+      }),
+    []
+  );
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold text-gray-900">ジョブ管理</h1>
+
+      {error && <DbErrorBanner />}
 
       <table className="w-full text-sm">
         <thead>
@@ -60,7 +68,7 @@ export default async function AdminJobsPage() {
         </tbody>
       </table>
 
-      {jobs.length === 0 && (
+      {jobs.length === 0 && !error && (
         <p className="mt-4 text-center text-sm text-gray-500">
           ジョブ実行履歴なし
         </p>

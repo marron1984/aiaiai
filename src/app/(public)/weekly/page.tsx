@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ArticleCard } from "@/components/ArticleCard";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -10,21 +12,22 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function WeeklyPage() {
-  // 直近7日間の記事をスコア順で取得
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  const articles = await prisma.article.findMany({
-    where: {
-      status: "PUBLISHED",
-      publishedAt: { gte: oneWeekAgo },
-    },
-    orderBy: { compositeScore: "desc" },
-    take: 20,
-    include: {
-      tags: { include: { tag: true } },
-    },
-  });
+  const { data: articles, error } = await safeQuery(
+    () =>
+      prisma.article.findMany({
+        where: {
+          status: "PUBLISHED",
+          publishedAt: { gte: oneWeekAgo },
+        },
+        orderBy: { compositeScore: "desc" },
+        take: 20,
+        include: { tags: { include: { tag: true } } },
+      }),
+    []
+  );
 
   const today = new Date().toLocaleDateString("ja-JP");
   const weekAgo = oneWeekAgo.toLocaleDateString("ja-JP");
@@ -38,10 +41,10 @@ export default async function WeeklyPage() {
         {weekAgo} 〜 {today} の注目アップデート（読む価値順）
       </p>
 
-      {articles.length === 0 ? (
-        <p className="text-gray-500">
-          今週の記事はまだありません。
-        </p>
+      {error && <DbErrorBanner />}
+
+      {articles.length === 0 && !error ? (
+        <p className="text-gray-500">今週の記事はまだありません。</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {articles.map((article) => {

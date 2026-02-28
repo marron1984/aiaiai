@@ -1,13 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { ArticleCard } from "@/components/ArticleCard";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 import type { Metadata } from "next";
 
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const tag = await prisma.tag.findUnique({ where: { slug } });
+  const { data: tag } = await safeQuery(
+    () => prisma.tag.findUnique({ where: { slug } }),
+    null
+  );
   if (!tag) return {};
   return {
     title: `${tag.name} の最新アップデート`,
@@ -19,21 +24,34 @@ export const dynamic = "force-dynamic";
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
-  const tag = await prisma.tag.findUnique({ where: { slug } });
+  const { data: tag, error } = await safeQuery(
+    () => prisma.tag.findUnique({ where: { slug } }),
+    null
+  );
+
+  if (error) {
+    return (
+      <div>
+        <h1 className="mb-6 text-2xl font-bold text-gray-900">プロダクト</h1>
+        <DbErrorBanner />
+      </div>
+    );
+  }
+
   if (!tag) notFound();
 
-  const articleTags = await prisma.articleTag.findMany({
-    where: { tagId: tag.id },
-    include: {
-      article: {
+  const { data: articleTags } = await safeQuery(
+    () =>
+      prisma.articleTag.findMany({
+        where: { tagId: tag.id },
         include: {
-          tags: { include: { tag: true } },
+          article: { include: { tags: { include: { tag: true } } } },
         },
-      },
-    },
-    orderBy: { article: { compositeScore: "desc" } },
-    take: 30,
-  });
+        orderBy: { article: { compositeScore: "desc" } },
+        take: 30,
+      }),
+    []
+  );
 
   const articles = articleTags
     .map((at) => at.article)

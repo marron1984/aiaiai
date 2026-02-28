@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { publishArticle, unpublishArticle, deleteArticle } from "@/lib/actions";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -19,18 +21,22 @@ const REC_LABELS: Record<string, string> = {
 };
 
 export default async function AdminArticlesPage() {
-  const articles = await prisma.article.findMany({
-    where: { status: { not: "DELETED" } },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: {
-      tags: { include: { tag: true } },
-    },
-  });
+  const { data: articles, error } = await safeQuery(
+    () =>
+      prisma.article.findMany({
+        where: { status: { not: "DELETED" } },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: { tags: { include: { tag: true } } },
+      }),
+    []
+  );
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold text-gray-900">記事管理</h1>
+
+      {error && <DbErrorBanner />}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -130,7 +136,7 @@ export default async function AdminArticlesPage() {
         </table>
       </div>
 
-      {articles.length === 0 && (
+      {articles.length === 0 && !error && (
         <p className="mt-8 text-center text-gray-500">
           記事がありません。ソースを追加して収集を実行してください。
         </p>

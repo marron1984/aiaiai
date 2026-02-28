@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ArticleCard } from "@/components/ArticleCard";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -7,39 +9,49 @@ export const metadata: Metadata = {
   description: "AI情報を検索",
 };
 
-type Props = { searchParams: Promise<{ q?: string; product?: string; level?: string }> };
+type Props = { searchParams: Promise<{ q?: string; product?: string }> };
 
 export const dynamic = "force-dynamic";
 
 export default async function SearchPage({ searchParams }: Props) {
   const { q, product } = await searchParams;
 
-  const articles = q
-    ? await prisma.article.findMany({
-        where: {
-          status: "PUBLISHED",
-          OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { summary3: { contains: q, mode: "insensitive" } },
-            { summaryLong: { contains: q, mode: "insensitive" } },
-          ],
-        },
-        orderBy: { compositeScore: "desc" },
-        take: 30,
-        include: {
-          tags: { include: { tag: true } },
-        },
-      })
-    : [];
+  const { data: articles, error: articlesError } = q
+    ? await safeQuery(
+        () =>
+          prisma.article.findMany({
+            where: {
+              status: "PUBLISHED",
+              OR: [
+                { title: { contains: q, mode: "insensitive" } },
+                { summary3: { contains: q, mode: "insensitive" } },
+                { summaryLong: { contains: q, mode: "insensitive" } },
+              ],
+            },
+            orderBy: { compositeScore: "desc" },
+            take: 30,
+            include: { tags: { include: { tag: true } } },
+          }),
+        []
+      )
+    : { data: [], error: false };
 
-  const productTags = await prisma.tag.findMany({
-    where: { axis: "PRODUCT" },
-    orderBy: { sortOrder: "asc" },
-  });
+  const { data: productTags, error: tagsError } = await safeQuery(
+    () =>
+      prisma.tag.findMany({
+        where: { axis: "PRODUCT" },
+        orderBy: { sortOrder: "asc" },
+      }),
+    []
+  );
+
+  const hasError = articlesError || tagsError;
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold text-gray-900">検索</h1>
+
+      {hasError && <DbErrorBanner />}
 
       {/* 検索フォーム */}
       <form className="mb-6" action="/search" method="GET">
@@ -108,7 +120,7 @@ export default async function SearchPage({ searchParams }: Props) {
           })}
         </div>
       ) : (
-        q && <p className="text-gray-500">該当する記事が見つかりません。</p>
+        q && !hasError && <p className="text-gray-500">該当する記事が見つかりません。</p>
       )}
     </div>
   );

@@ -1,19 +1,27 @@
 import { prisma } from "@/lib/prisma";
 import { createSource, toggleSource } from "@/lib/actions";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSourcesPage() {
-  const sources = await prisma.source.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { rawItems: true, jobRuns: true } },
-    },
-  });
+  const { data: sources, error } = await safeQuery(
+    () =>
+      prisma.source.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: { select: { rawItems: true, jobRuns: true } },
+        },
+      }),
+    []
+  );
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold text-gray-900">ソース管理</h1>
+
+      {error && <DbErrorBanner />}
 
       {/* ソース追加フォーム */}
       <details className="mb-8 rounded-lg border border-gray-200">
@@ -189,7 +197,7 @@ export default async function AdminSourcesPage() {
         </table>
       </div>
 
-      {sources.length === 0 && (
+      {sources.length === 0 && !error && (
         <p className="mt-4 text-center text-sm text-gray-500">
           ソースが登録されていません。上のフォームから追加してください。
         </p>

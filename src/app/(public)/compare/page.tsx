@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 import Link from "next/link";
 import type { Metadata } from "next";
 
@@ -10,35 +12,53 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function ComparePage() {
-  const productTags = await prisma.tag.findMany({
-    where: { axis: "PRODUCT" },
-    orderBy: { sortOrder: "asc" },
-  });
-
-  // 各プロダクトの最新記事を取得
-  const productsWithArticles = await Promise.all(
-    productTags.map(async (tag) => {
-      const articleTags = await prisma.articleTag.findMany({
-        where: {
-          tagId: tag.id,
-          article: { status: "PUBLISHED" },
-        },
-        include: { article: true },
-        orderBy: { article: { publishedAt: "desc" } },
-        take: 3,
-      });
-      return {
-        tag,
-        articles: articleTags.map((at) => at.article),
-        totalCount: await prisma.articleTag.count({
-          where: {
-            tagId: tag.id,
-            article: { status: "PUBLISHED" },
-          },
-        }),
-      };
-    })
+  const { data: productTags, error } = await safeQuery(
+    () =>
+      prisma.tag.findMany({
+        where: { axis: "PRODUCT" },
+        orderBy: { sortOrder: "asc" },
+      }),
+    []
   );
+
+  type ProductWithArticles = {
+    tag: (typeof productTags)[0];
+    articles: { id: string; slug: string; title: string; compositeScore: number }[];
+    totalCount: number;
+  };
+
+  let productsWithArticles: ProductWithArticles[] = [];
+
+  if (!error && productTags.length > 0) {
+    const { data } = await safeQuery(
+      async () =>
+        Promise.all(
+          productTags.map(async (tag) => {
+            const articleTags = await prisma.articleTag.findMany({
+              where: {
+                tagId: tag.id,
+                article: { status: "PUBLISHED" },
+              },
+              include: { article: true },
+              orderBy: { article: { publishedAt: "desc" } },
+              take: 3,
+            });
+            return {
+              tag,
+              articles: articleTags.map((at) => at.article),
+              totalCount: await prisma.articleTag.count({
+                where: {
+                  tagId: tag.id,
+                  article: { status: "PUBLISHED" },
+                },
+              }),
+            };
+          })
+        ),
+      []
+    );
+    productsWithArticles = data;
+  }
 
   return (
     <div>
@@ -48,6 +68,8 @@ export default async function ComparePage() {
       <p className="mb-8 text-sm text-gray-500">
         主要AIプロダクトの最新アップデートを比較
       </p>
+
+      {error && <DbErrorBanner />}
 
       <div className="grid gap-6 md:grid-cols-3">
         {productsWithArticles.map(({ tag, articles, totalCount }) => (

@@ -1,13 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { ArticleCard } from "@/components/ArticleCard";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 import type { Metadata } from "next";
 
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const tag = await prisma.tag.findUnique({ where: { slug } });
+  const { data: tag } = await safeQuery(
+    () => prisma.tag.findUnique({ where: { slug } }),
+    null
+  );
   if (!tag) return {};
   return {
     title: `${tag.name} のトピック`,
@@ -19,19 +24,34 @@ export const dynamic = "force-dynamic";
 
 export default async function TopicPage({ params }: Props) {
   const { slug } = await params;
-  const tag = await prisma.tag.findUnique({ where: { slug } });
+  const { data: tag, error } = await safeQuery(
+    () => prisma.tag.findUnique({ where: { slug } }),
+    null
+  );
+
+  if (error) {
+    return (
+      <div>
+        <h1 className="mb-6 text-2xl font-bold text-gray-900">トピック</h1>
+        <DbErrorBanner />
+      </div>
+    );
+  }
+
   if (!tag) notFound();
 
-  const articleTags = await prisma.articleTag.findMany({
-    where: { tagId: tag.id },
-    include: {
-      article: {
-        include: { tags: { include: { tag: true } } },
-      },
-    },
-    orderBy: { article: { publishedAt: "desc" } },
-    take: 30,
-  });
+  const { data: articleTags } = await safeQuery(
+    () =>
+      prisma.articleTag.findMany({
+        where: { tagId: tag.id },
+        include: {
+          article: { include: { tags: { include: { tag: true } } } },
+        },
+        orderBy: { article: { publishedAt: "desc" } },
+        take: 30,
+      }),
+    []
+  );
 
   const articles = articleTags
     .map((at) => at.article)

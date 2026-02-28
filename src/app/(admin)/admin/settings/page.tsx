@@ -1,23 +1,33 @@
 import { prisma } from "@/lib/prisma";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSettingsPage() {
-  const [legalEvents, auditLogs] = await Promise.all([
-    prisma.legalEvent.findMany({
-      orderBy: { requestedAt: "desc" },
-      take: 20,
-      include: { article: true },
-    }),
-    prisma.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
-  ]);
+  const { data, error } = await safeQuery(
+    () =>
+      Promise.all([
+        prisma.legalEvent.findMany({
+          orderBy: { requestedAt: "desc" },
+          take: 20,
+          include: { article: true },
+        }),
+        prisma.auditLog.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 30,
+        }),
+      ]),
+    [[], []] as [never[], never[]]
+  );
+
+  const [legalEvents, auditLogs] = data;
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold text-gray-900">設定・法務</h1>
+
+      {error && <DbErrorBanner />}
 
       {/* 法務イベント */}
       <section className="mb-8">

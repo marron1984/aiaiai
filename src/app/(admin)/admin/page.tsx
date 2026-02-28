@@ -1,22 +1,28 @@
 import { prisma } from "@/lib/prisma";
 import { triggerManualIngest } from "@/lib/actions";
+import { DbErrorBanner } from "@/components/DbErrorBanner";
+import { safeQuery } from "@/lib/safe-query";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-  const [sourceCount, articleCount, publishedCount, draftCount, , recentJobs] =
-    await Promise.all([
-      prisma.source.count(),
-      prisma.article.count(),
-      prisma.article.count({ where: { status: "PUBLISHED" } }),
-      prisma.article.count({ where: { status: "DRAFT" } }),
-      prisma.jobRun.count(),
-      prisma.jobRun.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: { source: true },
-      }),
-    ]);
+  const { data, error } = await safeQuery(
+    () =>
+      Promise.all([
+        prisma.source.count(),
+        prisma.article.count(),
+        prisma.article.count({ where: { status: "PUBLISHED" } }),
+        prisma.article.count({ where: { status: "DRAFT" } }),
+        prisma.jobRun.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          include: { source: true },
+        }),
+      ]),
+    [0, 0, 0, 0, []] as [number, number, number, number, never[]]
+  );
+
+  const [sourceCount, articleCount, publishedCount, draftCount, recentJobs] = data;
 
   return (
     <div>
@@ -33,6 +39,8 @@ export default async function AdminDashboard() {
           </button>
         </form>
       </div>
+
+      {error && <DbErrorBanner />}
 
       {/* 統計カード */}
       <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
