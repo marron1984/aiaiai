@@ -432,6 +432,9 @@ function generateSlug(title: string): string {
     .toLowerCase()
     .replace(/[^\w\s\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff-]/g, "")
     .replace(/\s+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "")
+    .replace(/-{2,}/g, "-")
     .slice(0, 80)
     .replace(/-+$/, "")
     || `article-${Date.now()}`;

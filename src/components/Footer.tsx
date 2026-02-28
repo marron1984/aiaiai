@@ -19,6 +19,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/daily" className="hover:text-gray-900">
+                  今日のダイジェスト
+                </Link>
+              </li>
+              <li>
                 <Link href="/weekly" className="hover:text-gray-900">
                   週次ダイジェスト
                 </Link>

@@ -5,6 +5,7 @@ import { UserMenu } from "./UserMenu";
 
 const navItems = [
   { href: "/latest", label: "最新" },
+  { href: "/daily", label: "今日" },
   { href: "/products/chatgpt", label: "ChatGPT" },
   { href: "/products/claude", label: "Claude" },
   { href: "/products/gemini", label: "Gemini" },
