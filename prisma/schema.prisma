@@ -273,7 +273,7 @@ model AuditLog {
   @@index([articleId])
 }
 
-// ===== ハブカテゴリ（表示順・有効/無効を管理） =====
+// ===== ハブカテゴリ（表示順・有効/無効を管理、階層対応） =====
 model HubCategory {
   id          String  @id @default(cuid())
   name        String  // 表示名（例: "AI", "ポーカー", "AV"）
@@ -283,8 +283,14 @@ model HubCategory {
   sortOrder   Int     @default(0) // 表示順
   isActive    Boolean @default(true) // 有効/無効
   description String? // 説明文
+
+  parentId    String? // 親カテゴリID（nullならトップレベル）
+  parent      HubCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    HubCategory[] @relation("CategoryHierarchy")
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([isActive, sortOrder])
+  @@index([parentId])
 }

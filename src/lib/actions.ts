@@ -198,12 +198,13 @@ export async function createCategory(formData: FormData) {
   const icon = (formData.get("icon") as string) || "📌";
   const tagSlug = formData.get("tagSlug") as string;
   const description = (formData.get("description") as string) || null;
+  const parentId = (formData.get("parentId") as string) || null;
 
   const maxOrder = await prisma.hubCategory.aggregate({ _max: { sortOrder: true } });
   const sortOrder = (maxOrder._max.sortOrder ?? -1) + 1;
 
   await prisma.hubCategory.create({
-    data: { name, slug, icon, tagSlug, sortOrder, description, isActive: true },
+    data: { name, slug, icon, tagSlug, sortOrder, description, isActive: true, parentId },
   });
   await prisma.auditLog.create({
     data: {

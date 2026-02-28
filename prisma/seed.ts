@@ -72,6 +72,61 @@ async function main() {
       update: {},
       create: { axis: "PRODUCT", name: "ポーカー", slug: "poker", sortOrder: 6 },
     }),
+    prisma.tag.upsert({
+      where: { slug: "av" },
+      update: {},
+      create: { axis: "PRODUCT", name: "AV", slug: "av", sortOrder: 7 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-local" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪ローカル", slug: "osaka-local", sortOrder: 8 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "startup" },
+      update: {},
+      create: { axis: "PRODUCT", name: "起業", slug: "startup", sortOrder: 9 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "uzbekistan" },
+      update: {},
+      create: { axis: "PRODUCT", name: "ウズベキスタン", slug: "uzbekistan", sortOrder: 10 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "hotel" },
+      update: {},
+      create: { axis: "PRODUCT", name: "ホテル", slug: "hotel", sortOrder: 11 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "perfume" },
+      update: {},
+      create: { axis: "PRODUCT", name: "香水", slug: "perfume", sortOrder: 12 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "gadget" },
+      update: {},
+      create: { axis: "PRODUCT", name: "ガジェット", slug: "gadget", sortOrder: 13 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-fuzoku" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪風俗", slug: "osaka-fuzoku", sortOrder: 14 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-poker" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪ポーカー", slug: "osaka-poker", sortOrder: 15 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-av-event" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪撮影会・握手会", slug: "osaka-av-event", sortOrder: 16 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "minami" },
+      update: {},
+      create: { axis: "PRODUCT", name: "ミナミ", slug: "minami", sortOrder: 17 },
+    }),
     // テーマ軸
     prisma.tag.upsert({
       where: { slug: "update" },

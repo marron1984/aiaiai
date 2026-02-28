@@ -68,25 +68,86 @@ async function syncLatestArticles(): Promise<void> {
 }
 
 /**
- * ハブカテゴリを同期（存在しないカテゴリを追加）
+ * 不足しているタグを同期（新規タグのみ追加）
+ */
+async function syncTags(): Promise<void> {
+  const existing = await prisma.tag.findMany({ select: { slug: true } });
+  const existingSlugs = new Set(existing.map((t) => t.slug));
+
+  const tagDefs = [
+    { axis: "PRODUCT" as const, name: "AV", slug: "av", sortOrder: 7 },
+    { axis: "PRODUCT" as const, name: "大阪ローカル", slug: "osaka-local", sortOrder: 8 },
+    { axis: "PRODUCT" as const, name: "起業", slug: "startup", sortOrder: 9 },
+    { axis: "PRODUCT" as const, name: "ウズベキスタン", slug: "uzbekistan", sortOrder: 10 },
+    { axis: "PRODUCT" as const, name: "ホテル", slug: "hotel", sortOrder: 11 },
+    { axis: "PRODUCT" as const, name: "香水", slug: "perfume", sortOrder: 12 },
+    { axis: "PRODUCT" as const, name: "ガジェット", slug: "gadget", sortOrder: 13 },
+    { axis: "PRODUCT" as const, name: "大阪風俗", slug: "osaka-fuzoku", sortOrder: 14 },
+    { axis: "PRODUCT" as const, name: "大阪ポーカー", slug: "osaka-poker", sortOrder: 15 },
+    { axis: "PRODUCT" as const, name: "大阪撮影会・握手会", slug: "osaka-av-event", sortOrder: 16 },
+    { axis: "PRODUCT" as const, name: "ミナミ", slug: "minami", sortOrder: 17 },
+  ];
+
+  let added = 0;
+  for (const def of tagDefs) {
+    if (existingSlugs.has(def.slug)) continue;
+    await prisma.tag.create({ data: def });
+    added++;
+  }
+  if (added > 0) {
+    console.log(`[seed] Added ${added} new tags`);
+  }
+}
+
+/**
+ * ハブカテゴリを同期（存在しないカテゴリを追加、階層対応）
  */
 async function syncHubCategories(): Promise<void> {
-  const existing = await prisma.hubCategory.findMany({ select: { slug: true } });
+  const existing = await prisma.hubCategory.findMany({ select: { slug: true, id: true } });
   const existingSlugs = new Set(existing.map((c) => c.slug));
+  const slugToId: Record<string, string> = {};
+  for (const c of existing) {
+    slugToId[c.slug] = c.id;
+  }
 
-  const categories = [
+  // トップレベルカテゴリ
+  const topCategories = [
     { name: "AI全般", slug: "ai", icon: "🤖", tagSlug: "chatgpt", sortOrder: 1, description: "ChatGPT・Claude・Gemini等のAI最新情報" },
     { name: "ポーカー", slug: "poker", icon: "🃏", tagSlug: "poker", sortOrder: 2, description: "WSOP・JOPT・WPT等の大会・戦略情報" },
     { name: "AV", slug: "av", icon: "🎬", tagSlug: "av", sortOrder: 3, description: "新人・リリース・業界ニュース" },
     { name: "大阪ローカル", slug: "osaka", icon: "🏯", tagSlug: "osaka-local", sortOrder: 4, description: "大阪のイベント・グルメ・生活情報" },
+    { name: "起業", slug: "startup", icon: "🚀", tagSlug: "startup", sortOrder: 5, description: "起業・スタートアップ・ビジネス戦略" },
+    { name: "ウズベキスタン", slug: "uzbekistan", icon: "🇺🇿", tagSlug: "uzbekistan", sortOrder: 6, description: "ウズベキスタンの文化・旅行・ビジネス情報" },
+    { name: "ホテル", slug: "hotel", icon: "🏨", tagSlug: "hotel", sortOrder: 7, description: "ホテルマネジメント・宿泊業界情報" },
+    { name: "香水", slug: "perfume", icon: "🧴", tagSlug: "perfume", sortOrder: 8, description: "フレグランス・新作・レビュー" },
+    { name: "ガジェット", slug: "gadget", icon: "📱", tagSlug: "gadget", sortOrder: 9, description: "最新ガジェット・テクノロジー・レビュー" },
+    { name: "大阪風俗", slug: "osaka-fuzoku", icon: "🌙", tagSlug: "osaka-fuzoku", sortOrder: 10, description: "大阪の風俗情報" },
   ];
 
   let added = 0;
-  for (const cat of categories) {
+  for (const cat of topCategories) {
     if (existingSlugs.has(cat.slug)) continue;
-    await prisma.hubCategory.create({ data: cat });
+    const created = await prisma.hubCategory.create({ data: cat });
+    slugToId[cat.slug] = created.id;
+    existingSlugs.add(cat.slug);
     added++;
   }
+
+  // サブカテゴリ（親ID参照）
+  const subCategories = [
+    { name: "大阪ポーカー", slug: "osaka-poker", icon: "🃏", tagSlug: "osaka-poker", sortOrder: 1, description: "大阪のポーカー大会・アミューズメント情報", parentSlug: "poker" },
+    { name: "大阪撮影会・握手会", slug: "osaka-av-event", icon: "📸", tagSlug: "osaka-av-event", sortOrder: 1, description: "大阪開催の撮影会・握手会・イベント情報", parentSlug: "av" },
+    { name: "ミナミ", slug: "minami", icon: "🌃", tagSlug: "minami", sortOrder: 1, description: "ミナミエリアの風俗情報", parentSlug: "osaka-fuzoku" },
+  ];
+
+  for (const { parentSlug, ...sub } of subCategories) {
+    if (existingSlugs.has(sub.slug)) continue;
+    const parentId = slugToId[parentSlug];
+    if (!parentId) continue;
+    await prisma.hubCategory.create({ data: { ...sub, parentId } });
+    added++;
+  }
+
   if (added > 0) {
     console.log(`[seed] Added ${added} hub categories`);
   }
@@ -101,7 +162,8 @@ export async function ensureSeedData(): Promise<void> {
   if (seeded) return;
 
   try {
-    // 既存DBでも新規ソース・記事・カテゴリは常に同期
+    // 既存DBでも新規タグ・ソース・記事・カテゴリは常に同期
+    await syncTags();
     await syncSources();
     await syncLatestArticles();
     await syncHubCategories();
@@ -125,6 +187,15 @@ export async function ensureSeedData(): Promise<void> {
       { axis: "PRODUCT" as const, name: "ポーカー", slug: "poker", sortOrder: 6 },
       { axis: "PRODUCT" as const, name: "AV", slug: "av", sortOrder: 7 },
       { axis: "PRODUCT" as const, name: "大阪ローカル", slug: "osaka-local", sortOrder: 8 },
+      { axis: "PRODUCT" as const, name: "起業", slug: "startup", sortOrder: 9 },
+      { axis: "PRODUCT" as const, name: "ウズベキスタン", slug: "uzbekistan", sortOrder: 10 },
+      { axis: "PRODUCT" as const, name: "ホテル", slug: "hotel", sortOrder: 11 },
+      { axis: "PRODUCT" as const, name: "香水", slug: "perfume", sortOrder: 12 },
+      { axis: "PRODUCT" as const, name: "ガジェット", slug: "gadget", sortOrder: 13 },
+      { axis: "PRODUCT" as const, name: "大阪風俗", slug: "osaka-fuzoku", sortOrder: 14 },
+      { axis: "PRODUCT" as const, name: "大阪ポーカー", slug: "osaka-poker", sortOrder: 15 },
+      { axis: "PRODUCT" as const, name: "大阪撮影会・握手会", slug: "osaka-av-event", sortOrder: 16 },
+      { axis: "PRODUCT" as const, name: "ミナミ", slug: "minami", sortOrder: 17 },
       // テーマ軸
       { axis: "THEME" as const, name: "アップデート", slug: "update", sortOrder: 1 },
       { axis: "THEME" as const, name: "料金", slug: "pricing", sortOrder: 2 },
@@ -724,6 +795,319 @@ function getLatestArticleDefs() {
       status: "PUBLISHED" as const,
       publishedAt: new Date("2026-01-09"),
       tagSlugs: ["av"],
+    },
+    // === 起業 ===
+    {
+      slug: "jpyc-series-b-178-oku-2026-02",
+      title: "JPYC、シリーズBで17.8億円を調達 — 日本円ステーブルコインの大型資金調達",
+      summary3: "日本円連動型ステーブルコイン提供のJPYCがシリーズBファーストクローズで17.8億円調達。\nAsteriaがリード投資家。暗号資産規制整備に伴う大型調達。\n出典: 日本経済新聞",
+      summaryLong: "JPYCは日本円連動型ステーブルコインの先駆者として、制度整備が進む日本市場での成長を加速させます。シリーズBでの17.8億円調達はブロックチェーン決済インフラの需要の高まりを示しています。",
+      whatChanged: "JPYC シリーズB 17.8億円調達",
+      whoImpacted: "暗号資産・フィンテック起業家、ブロックチェーン事業者",
+      actions: "ステーブルコイン基盤の決済事業参入タイミングを検討。",
+      recommendation: "MONITOR" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://www.nikkei.com/article/DGXZQOUC269DN0W6A220C2000000/",
+      trustScore: 90, importanceScore: 75, noveltyScore: 70,
+      usefulnessScore: 70, urgencyScore: 25, compositeScore: 68.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-27"),
+      tagSlugs: ["startup", "management"],
+    },
+    {
+      slug: "keidanren-startup-5year-plan-2026",
+      title: "スタートアップ育成5か年計画 — 政府がバイオ・ライフサイエンス重点支援を発表",
+      summary3: "経団連がスタートアップ育成5か年計画を発表。約350億ドル相当の予算を投下。\nバイオテク・ライフサイエンス分野への重点支援を開始。\n日本のユニコーン11社、新規ユニコーン誕生を加速。\n出典: 経団連タイムス",
+      summaryLong: "政府主導のスタートアップ支援策が具体化し、バイオテク・ライフサイエンス分野を中心に補助金・助成金の拡充が進んでいます。ユニコーン企業の創出を加速させるアクセラレーター支援や規制緩和も予定されています。",
+      whatChanged: "スタートアップ育成5か年計画発表、バイオ・ライフサイエンス重点支援",
+      whoImpacted: "起業家、VC、バイオテク分野の研究者",
+      actions: "政府系補助金・助成金の活用を検討。アクセラレーター支援の要件を確認。",
+      recommendation: "TRY" as const,
+      depth: "DEEP" as const,
+      sourceUrl: "https://www.keidanren.or.jp/journal/times/2026/0226_07.html",
+      trustScore: 90, importanceScore: 85, noveltyScore: 65,
+      usefulnessScore: 85, urgencyScore: 40, compositeScore: 76.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-26"),
+      tagSlugs: ["startup", "management"],
+    },
+    {
+      slug: "yoake-ai-blockchain-fan-5oku-2026",
+      title: "YOAKE Entertainment、AI×ブロックチェーンでファン体験事業に約5億円調達",
+      summary3: "AIとブロックチェーン活用のファンエクスペリエンス企業YOAKEが約5億円を調達。\nエンタメ×テックで顧客体験の高度化を実現。\n出典: 各種報道",
+      summaryLong: null,
+      whatChanged: "YOAKE Entertainment 約5億円調達、エンタメ×テック事業強化",
+      whoImpacted: "エンタメ業界関係者、AI・Web3起業家",
+      actions: "エンタメ×テックの新規事業機会を検討。",
+      recommendation: "MONITOR" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://www.nikkei.com/business/startups/",
+      trustScore: 80, importanceScore: 65, noveltyScore: 70,
+      usefulnessScore: 60, urgencyScore: 20, compositeScore: 60.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-13"),
+      tagSlugs: ["startup"],
+    },
+    // === ウズベキスタン ===
+    {
+      slug: "uzbekistan-winter-tourism-ski-2026",
+      title: "ウズベキスタン、冬季観光を本格化 — アミルソイ・スキーリゾートに80万人超来場",
+      summary3: "ウズベキスタンのアミルソイ・スキーリゾートが80万人超を集客。外国人比率20%以上。\n冬を新たな観光シーズンとして確立する政策が進行中。\n出典: Euronews Travel",
+      summaryLong: "ウズベキスタンは伝統的なシルクロード観光に加え、山岳地帯でのスキー・トレッキングを新たな冬季観光として展開。アミルソイリゾートは2024年70万人、2025年80万人超を達成し、急成長中です。",
+      whatChanged: "冬季観光の本格化、アミルソイリゾート80万人超来場",
+      whoImpacted: "旅行好き、中央アジアに関心のある方",
+      actions: "冬のウズベキスタン旅行を計画。スキーシーズンは12月〜3月。",
+      recommendation: "TRY" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://www.euronews.com/travel/2026/02/10/how-uzbekistan-is-turning-winter-into-a-travel-season",
+      trustScore: 85, importanceScore: 65, noveltyScore: 75,
+      usefulnessScore: 70, urgencyScore: 20, compositeScore: 63.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-10"),
+      tagSlugs: ["uzbekistan"],
+    },
+    {
+      slug: "uzbekistan-pakistan-trade-20b-2026",
+      title: "ウズベキスタン・パキスタン、貿易額20億ドルへ — トランスアフガン鉄道も加速",
+      summary3: "ウズベキスタンとパキスタンが貿易額を5億→20億ドルに拡大する方針で合意。\nトランスアフガン鉄道建設プロジェクトも加速。\n出典: ジェトロ",
+      summaryLong: "ミルジヨエフ大統領の2月パキスタン訪問で交通・物流インフラ強化に合意。中央アジア〜南アジアの貿易ルート確立がビジネスチャンスとなる見込みです。",
+      whatChanged: "パキスタンとの貿易額20億ドル目標、鉄道建設加速",
+      whoImpacted: "中央アジアビジネスに関心のある企業・投資家",
+      actions: "トランスアフガン鉄道プロジェクトの進展を注視。",
+      recommendation: "MONITOR" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://www.jetro.go.jp/biznews/2026/02/c3cba67fb75cd19b.html",
+      trustScore: 90, importanceScore: 70, noveltyScore: 65,
+      usefulnessScore: 55, urgencyScore: 15, compositeScore: 60.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-06"),
+      tagSlugs: ["uzbekistan"],
+    },
+    {
+      slug: "uzbekistan-12m-tourists-target-2026",
+      title: "ウズベキスタン、1,000以上の新宿泊施設で観光客1,200万人を目指す",
+      summary3: "ウズベキスタンが1,000以上の新規宿泊施設を建設中。AI活用の次世代ホスピタリティを推進。\nブハラ・サマルカンド・ヒヴァに加え新興地域も開発。\n2026年までに1,200万人の観光客誘致を目標。\n出典: Travel and Tour World",
+      summaryLong: null,
+      whatChanged: "1,000以上の新宿泊施設建設、1,200万人の観光客目標",
+      whoImpacted: "旅行業界、ホテル事業者、中央アジア投資家",
+      actions: "ウズベキスタンのホテル投資・旅行事業参入を検討。",
+      recommendation: "MONITOR" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://www.travelandtourworld.com/news/article/uzbekistan-poised-to-revolutionize-travel-landscape-with-over-one-thousand-new-accommodation-facilities-expanding-tourism-horizons-and-infrastructure-by-2026/",
+      trustScore: 80, importanceScore: 65, noveltyScore: 70,
+      usefulnessScore: 60, urgencyScore: 15, compositeScore: 58.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-15"),
+      tagSlugs: ["uzbekistan", "hotel"],
+    },
+    // === ホテル ===
+    {
+      slug: "japan-hotel-inbound-4268man-2026",
+      title: "訪日外国人4,268万人 — ホテル業界「量から質へ」のシフトが加速",
+      summary3: "2026年のホテル業界は訪日外国人4,268万人を背景に「量から質」へシフト。\n長期滞在・体験型需要が成長。稼働率+3.2pt、客室単価+10.8%と堅調。\n出典: Colliers Japan",
+      summaryLong: "訪日外国人の増加に伴い、ホテル業界はオーバーツーリズム対策と高付加価値化を同時に推進。WBC、アジア大会、PokéPark関東などの大型イベントがインバウンド需要を支援しています。",
+      whatChanged: "インバウンド4,268万人、量から質へのシフト、ADR+10.8%",
+      whoImpacted: "ホテル経営者、観光業界関係者、不動産投資家",
+      actions: "体験型・長期滞在プランの開発を検討。ADR引き上げ戦略を実行。",
+      recommendation: "TRY" as const,
+      depth: "DEEP" as const,
+      sourceUrl: "https://www.colliers.com/en-jp/research/japan-hospitality-insights-february-2026",
+      trustScore: 90, importanceScore: 85, noveltyScore: 65,
+      usefulnessScore: 85, urgencyScore: 35, compositeScore: 75.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-20"),
+      tagSlugs: ["hotel", "management"],
+    },
+    {
+      slug: "hotel-chain-top-zadankai-2026",
+      title: "大手ホテルチェーン座談会2026 — 人材育成と待遇強化が最重要課題に",
+      summary3: "三井不動産、三菱地所、オリックスなど大手ホテルチェーンが2026年戦略を議論。\n人材育成と待遇面の強化が最重要課題として共有。\n出典: 観光経済新聞",
+      summaryLong: null,
+      whatChanged: "大手チェーンが人材戦略を最優先課題に設定",
+      whoImpacted: "ホテル業界従事者、人事担当者、就職活動中の学生",
+      actions: "自社の人材育成・待遇プランを見直し。競合他社の施策をベンチマーク。",
+      recommendation: "MONITOR" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://www.kankokeizai.com/2601090630kks/",
+      trustScore: 85, importanceScore: 70, noveltyScore: 55,
+      usefulnessScore: 75, urgencyScore: 25, compositeScore: 64.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-15"),
+      tagSlugs: ["hotel", "management"],
+    },
+    {
+      slug: "hotel-supply-rate-17pct-cost-2026",
+      title: "ホテル新規供給率わずか1.7% — 建設コスト高騰が業界に与える影響",
+      summary3: "2026年のホテル新規供給率は1.7%と低水準。建設費高騰が主因。\n一方、稼働率・客室単価は堅調に推移し既存ホテルには追い風。\n出典: 宿研ナレッジ",
+      summaryLong: null,
+      whatChanged: "新規供給率1.7%、建設コスト高騰の影響",
+      whoImpacted: "ホテル開発・投資家、既存ホテルオーナー",
+      actions: "既存物件のリノベーション・ADR最適化に注力。新規開発は慎重に。",
+      recommendation: "MONITOR" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://www.yadoken.net/archives/column/",
+      trustScore: 80, importanceScore: 65, noveltyScore: 55,
+      usefulnessScore: 70, urgencyScore: 20, compositeScore: 60.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-10"),
+      tagSlugs: ["hotel"],
+    },
+    // === 香水 ===
+    {
+      slug: "dior-addict-first-fragrance-2026",
+      title: "ディオール アディクト初のフレグランス登場 — 2026年春コスメの注目香水",
+      summary3: "ディオールが「アディクト」ライン初のフレグランスを2026年1月1日に発売。\nバニラ・マシュマロなどグルマン系（スイーツ香り）が2026年春のメイントレンド。\n出典: ファッションプレス",
+      summaryLong: "2026年春のフレグランストレンドは「美味しい香り（グルマン系）」と「アジア発」がメインテーマ。ディオール、エルメス、ゲランなどの名門ブランドから新作が続々登場しています。",
+      whatChanged: "ディオール アディクト初フレグランス発売、グルマン系がトレンドに",
+      whoImpacted: "香水愛好家、コスメに関心のある方",
+      actions: "店舗でテスターを試す。百貨店のカウンターで購入可能。",
+      recommendation: "TRY" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://www.fashion-press.net/news/139851",
+      trustScore: 85, importanceScore: 65, noveltyScore: 75,
+      usefulnessScore: 70, urgencyScore: 30, compositeScore: 66.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-01-15"),
+      tagSlugs: ["perfume"],
+    },
+    {
+      slug: "hermes-musc-pallida-2026",
+      title: "エルメス新作「ムスク パリダ」— パウダリーなアイリスとムスクの融合",
+      summary3: "エルメスが新フレグランス「ムスク パリダ」を1月23日に発売。\nパウダリーなアイリスとやわらかなムスクの融合が特徴。\n出典: 美ST ONLINE",
+      summaryLong: null,
+      whatChanged: "エルメス「ムスク パリダ」新発売",
+      whoImpacted: "香水コレクター、エルメスファン",
+      actions: "エルメスブティックまたは百貨店で試香。",
+      recommendation: "MONITOR" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://be-story.jp/make-up/230424/",
+      trustScore: 80, importanceScore: 55, noveltyScore: 70,
+      usefulnessScore: 65, urgencyScore: 20, compositeScore: 58.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-01-23"),
+      tagSlugs: ["perfume"],
+    },
+    {
+      slug: "fragrance-trend-unisex-2026",
+      title: "2026年フレグランストレンド — ユニセックス需要25%増、サステナブルリフィル台頭",
+      summary3: "2026年のグローバルフレグランス市場でユニセックス香水の需要が25%増加予測。\nリフィル対応ボトルやサステナブルパッケージが主流に。\n出典: Marie Claire",
+      summaryLong: "グローバルなフレグランストレンドとして、性別を問わないユニセックス香水の人気が急上昇。ボトルデザインではメタリック仕上げやジュエリー風キャップ、リフィル対応のサステナブル設計が注目されています。",
+      whatChanged: "ユニセックス需要+25%、リフィル対応ボトルの主流化",
+      whoImpacted: "香水ブランド、消費者、小売業者",
+      actions: "ユニセックス・リフィル対応の新作をチェック。",
+      recommendation: "MONITOR" as const,
+      depth: "DEEP" as const,
+      sourceUrl: "https://www.marieclaire.com/beauty/fragrance/best-2026-perfumes/",
+      trustScore: 80, importanceScore: 60, noveltyScore: 70,
+      usefulnessScore: 65, urgencyScore: 15, compositeScore: 58.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-01"),
+      tagSlugs: ["perfume"],
+    },
+    // === ガジェット ===
+    {
+      slug: "polar-loop-screenless-smartwatch-2026",
+      title: "POLAR Loop — スクリーンレスの健康管理スマートウォッチが登場",
+      summary3: "スクリーンを搭載しない新コンセプトのスマートウォッチPOLAR Loopが登場。\n活動量・睡眠データを自動記録。サブスク不要のヘルスケア特化設計。\n出典: Yanko Design",
+      summaryLong: "POLAR Loopはディスプレイを排除することでバッテリー持続時間を最大化し、健康データの記録に特化した新しいウェアラブルデバイスです。サブスクリプション不要で利用可能。",
+      whatChanged: "スクリーンレスの健康管理ウォッチ発売",
+      whoImpacted: "健康管理に関心のある方、ウェアラブルデバイスユーザー",
+      actions: "公式サイトで仕様を確認し、ヘルスケア用途での購入を検討。",
+      recommendation: "TRY" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://www.yankodesign.com/2026/02/05/5-best-tech-gadgets-of-february-2026/",
+      trustScore: 75, importanceScore: 60, noveltyScore: 80,
+      usefulnessScore: 70, urgencyScore: 25, compositeScore: 63.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-05"),
+      tagSlugs: ["gadget"],
+    },
+    {
+      slug: "huawei-freeclip2-open-ear-2026",
+      title: "HUAWEI FreeClip 2 — 耳を塞がないオープンイヤーイヤホンの進化版",
+      summary3: "HUAWEIのオープンイヤーイヤホンFreeClip 2が登場。\n音質と操作性を向上。耳を塞がない快適な装着感がさらに進化。\n出典: 各種レビュー",
+      summaryLong: null,
+      whatChanged: "FreeClip 2リリース、音質・操作性向上",
+      whoImpacted: "ワイヤレスイヤホンユーザー、ランナー・通勤者",
+      actions: "家電量販店で試着して装着感を確認。",
+      recommendation: "TRY" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://katsukichi-life.com/k-life-news-2026-01-02",
+      trustScore: 75, importanceScore: 55, noveltyScore: 65,
+      usefulnessScore: 70, urgencyScore: 25, compositeScore: 59.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-10"),
+      tagSlugs: ["gadget"],
+    },
+    {
+      slug: "sony-ai-music-identification-2026",
+      title: "ソニー、AI生成音楽の原典を特定する技術を開発 — 著作権保護へ",
+      summary3: "ソニーがAI生成音楽の原典ソースを特定する新技術を発表。\nクリエイターの著作権保護とAI学習の無断使用防止が目的。\n出典: 各種報道",
+      summaryLong: "ソニーグループはAI音楽生成に対する著作権懸念の高まりを受け、生成された音楽がどのトレーニングデータに基づいているかを特定する技術を開発しました。音楽業界全体の著作権保護に大きな一歩となります。",
+      whatChanged: "AI音楽の原典特定技術開発",
+      whoImpacted: "音楽クリエイター、AI音楽サービス提供者、著作権管理団体",
+      actions: "AI音楽生成を使用する場合、著作権確認プロセスの見直しを。",
+      recommendation: "MONITOR" as const,
+      depth: "DEEP" as const,
+      sourceUrl: "https://note.com/gadget_news/n/ndb0f6d4b4a01",
+      trustScore: 80, importanceScore: 75, noveltyScore: 80,
+      usefulnessScore: 70, urgencyScore: 20, compositeScore: 67.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-15"),
+      tagSlugs: ["gadget"],
+    },
+    // === 大阪ポーカー ===
+    {
+      slug: "osaka-usop-prize-3300man-2026",
+      title: "USOP大阪 梅田開催 — プライズ3,300万円の大型ポーカー大会",
+      summary3: "U Series of Poker（USOP）が大阪・梅田で開催。プライズ総額3,300万円。\n2026年も大阪は主要ポーカー大会の集積地に。\n出典: light-three.com",
+      summaryLong: null,
+      whatChanged: "USOP大阪開催、プライズ3,300万円",
+      whoImpacted: "大阪のポーカープレイヤー、トーナメント参加者",
+      actions: "USOP大阪のサテライト情報を確認し、エントリーを計画。",
+      recommendation: "TRY" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://light-three.com/osaka-tournament/",
+      trustScore: 80, importanceScore: 70, noveltyScore: 60,
+      usefulnessScore: 75, urgencyScore: 45, compositeScore: 67.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-20"),
+      tagSlugs: ["osaka-poker", "poker", "tournament"],
+    },
+    {
+      slug: "casino-cafe-namba-marui-renewal-2026",
+      title: "カジノカフェなんばマルイが移転リニューアル — 7Fでポーカー・カジノゲーム",
+      summary3: "カジノカフェなんばマルイが2月1日に7Fへ移転リニューアルオープン。\nテキサスホールデムポーカー、ルーレット、ブラックジャック等を提供。\n初心者〜上級者まで対応。\n出典: poker-choice.com",
+      summaryLong: null,
+      whatChanged: "カジノカフェなんばマルイ 7F移転リニューアル",
+      whoImpacted: "難波周辺のポーカープレイヤー、初心者",
+      actions: "なんばマルイ7Fの新店舗でポーカーを楽しんでみてください。",
+      recommendation: "TRY" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://poker-choice.com/amusement-casino/pokerroom-namba/",
+      trustScore: 75, importanceScore: 55, noveltyScore: 60,
+      usefulnessScore: 70, urgencyScore: 20, compositeScore: 57.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-01"),
+      tagSlugs: ["osaka-poker", "poker"],
+    },
+    // === 大阪風俗・ミナミ ===
+    {
+      slug: "minami-nightlife-guide-2026",
+      title: "大阪ミナミ 繁華街ガイド2026 — 道頓堀・心斎橋・千日前の最新事情",
+      summary3: "大阪ミナミ（難波・心斎橋・道頓堀・千日前）の繁華街が進化中。\nインバウンド急増で新規出店が活況。飲食・娯楽・ナイトライフが充実。\n出典: nippon.com",
+      summaryLong: "ミナミは江戸時代から続く大阪の繁華街で、難波、心斎橋、道頓堀、千日前などを含みます。2026年はインバウンド需要の急増により新規出店が活況を呈しています。",
+      whatChanged: "インバウンド急増でミナミ繁華街が活況",
+      whoImpacted: "大阪在住者、ナイトライフに関心のある方",
+      actions: "ミナミエリアの最新スポットを探索。",
+      recommendation: "MONITOR" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://www.nippon.com/ja/guide-to-japan/gu900112/",
+      trustScore: 80, importanceScore: 55, noveltyScore: 50,
+      usefulnessScore: 65, urgencyScore: 15, compositeScore: 54.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-15"),
+      tagSlugs: ["minami", "osaka-fuzoku", "osaka-local"],
     },
     // === 大阪ローカル ===
     {

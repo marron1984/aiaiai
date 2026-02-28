@@ -9,16 +9,149 @@ import { safeQuery } from "@/lib/safe-query";
 
 export const dynamic = "force-dynamic";
 
+// 記事をdepth別に分類するヘルパー
+function groupByDepth(articles: ArticleWithTags[]) {
+  return {
+    breaking: articles.filter((a) => a.depth === "BREAKING").slice(0, 4),
+    detailed: articles.filter((a) => a.depth === "DETAILED").slice(0, 4),
+    deep: articles.filter((a) => a.depth === "DEEP").slice(0, 2),
+  };
+}
+
+type ArticleWithTags = Awaited<
+  ReturnType<typeof prisma.article.findMany<{ include: { tags: { include: { tag: true } } } }>>
+>[number];
+
+// カテゴリに対応する記事を取得
+function getArticlesForCategory(
+  cat: { slug: string; tagSlug: string },
+  allArticles: ArticleWithTags[]
+) {
+  const aiSlugs = ["chatgpt", "openai-api", "claude", "claude-code", "gemini"];
+  const matchSlugs = cat.slug === "ai" ? aiSlugs : [cat.tagSlug];
+  return allArticles.filter((a) =>
+    a.tags.some((t) => matchSlugs.includes(t.tag.slug))
+  );
+}
+
+// 深度別記事セクションを描画
+function DepthSections({ articles }: { articles: ArticleWithTags[] }) {
+  const { breaking, detailed, deep } = groupByDepth(articles);
+
+  return (
+    <>
+      {breaking.length > 0 && (
+        <div className="mb-4">
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="text-sm">⚡</span>
+            <h3 className="text-sm font-semibold text-amber-700">速報</h3>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {breaking.map((article) => {
+              const pTag = article.tags.find((t) => t.tag.axis === "PRODUCT");
+              return (
+                <BreakingCard
+                  key={article.id}
+                  slug={article.slug}
+                  title={article.title}
+                  summary3={article.summary3}
+                  productTag={pTag?.tag.name}
+                  recommendation={article.recommendation}
+                  publishedAt={article.publishedAt?.toISOString()}
+                  sourceUrl={article.sourceUrl}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {detailed.length > 0 && (
+        <div className="mb-4">
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="text-sm">📋</span>
+            <h3 className="text-sm font-semibold text-blue-700">詳しい情報</h3>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {detailed.map((article) => {
+              const pTag = article.tags.find((t) => t.tag.axis === "PRODUCT");
+              const lTag = article.tags.find((t) => t.tag.axis === "LEVEL");
+              return (
+                <ArticleCard
+                  key={article.id}
+                  slug={article.slug}
+                  title={article.title}
+                  summary3={article.summary3}
+                  compositeScore={article.compositeScore}
+                  trustScore={article.trustScore}
+                  importanceScore={article.importanceScore}
+                  urgencyScore={article.urgencyScore}
+                  recommendation={article.recommendation}
+                  productTag={pTag?.tag.name}
+                  levelTag={lTag?.tag.name}
+                  publishedAt={article.publishedAt?.toISOString()}
+                  sourceUrl={article.sourceUrl}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {deep.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="text-sm">🔬</span>
+            <h3 className="text-sm font-semibold text-purple-700">深い情報</h3>
+          </div>
+          <div className="grid gap-3">
+            {deep.map((article) => {
+              const pTag = article.tags.find((t) => t.tag.axis === "PRODUCT");
+              return (
+                <DeepCard
+                  key={article.id}
+                  slug={article.slug}
+                  title={article.title}
+                  summary3={article.summary3}
+                  summaryLong={article.summaryLong}
+                  whatChanged={article.whatChanged}
+                  whoImpacted={article.whoImpacted}
+                  actions={article.actions}
+                  compositeScore={article.compositeScore}
+                  trustScore={article.trustScore}
+                  recommendation={article.recommendation}
+                  productTag={pTag?.tag.name}
+                  publishedAt={article.publishedAt?.toISOString()}
+                  sourceUrl={article.sourceUrl}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default async function HomePage() {
-  // カテゴリを取得（有効なものを表示順で）
-  const { data: categories } = await safeQuery(
+  // カテゴリを取得（有効なもの、子カテゴリ含む）
+  const { data: allCategories } = await safeQuery(
     () =>
       prisma.hubCategory.findMany({
         where: { isActive: true },
         orderBy: { sortOrder: "asc" },
+        include: {
+          children: {
+            where: { isActive: true },
+            orderBy: { sortOrder: "asc" },
+          },
+        },
       }),
     []
   );
+
+  // トップレベルカテゴリのみ（parentId === null）
+  const topCategories = allCategories.filter((c) => !c.parentId);
 
   // 全公開記事を取得（タグ付き）
   const { data: allArticles, error: articlesError } = await safeQuery(
@@ -26,32 +159,13 @@ export default async function HomePage() {
       prisma.article.findMany({
         where: { status: "PUBLISHED" },
         orderBy: { compositeScore: "desc" },
-        take: 50,
+        take: 100,
         include: { tags: { include: { tag: true } } },
       }),
     []
   );
 
   const noArticles = allArticles.length === 0 && !articlesError;
-
-  // カテゴリごとに記事をグルーピング
-  const categoryArticles = categories.map((cat) => {
-    // "ai" カテゴリは複数のAI系タグをまとめる
-    const aiSlugs = ["chatgpt", "openai-api", "claude", "claude-code", "gemini"];
-    const matchSlugs = cat.slug === "ai" ? aiSlugs : [cat.tagSlug];
-
-    const articles = allArticles.filter((a) =>
-      a.tags.some((t) => matchSlugs.includes(t.tag.slug))
-    );
-
-    return {
-      ...cat,
-      articles,
-      breaking: articles.filter((a) => a.depth === "BREAKING").slice(0, 4),
-      detailed: articles.filter((a) => a.depth === "DETAILED").slice(0, 4),
-      deep: articles.filter((a) => a.depth === "DEEP").slice(0, 2),
-    };
-  });
 
   return (
     <div>
@@ -64,10 +178,10 @@ export default async function HomePage() {
           {SITE_DESCRIPTION}
         </p>
 
-        {/* カテゴリタブ */}
-        {categories.length > 0 && (
+        {/* カテゴリタブ（トップレベルのみ） */}
+        {topCategories.length > 0 && (
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            {categories.map((cat) => (
+            {topCategories.map((cat) => (
               <a
                 key={cat.id}
                 href={`#cat-${cat.slug}`}
@@ -111,8 +225,12 @@ export default async function HomePage() {
         </div>
       ) : (
         <div className="space-y-12">
-          {categoryArticles.map((cat) => {
-            if (cat.articles.length === 0) return null;
+          {topCategories.map((cat) => {
+            const articles = getArticlesForCategory(cat, allArticles);
+            const hasChildren = cat.children && cat.children.length > 0;
+
+            if (articles.length === 0 && !hasChildren) return null;
+
             return (
               <section key={cat.id} id={`cat-${cat.slug}`} className="scroll-mt-20">
                 {/* カテゴリヘッダー */}
@@ -120,7 +238,9 @@ export default async function HomePage() {
                   <span className="text-2xl">{cat.icon}</span>
                   <h2 className="text-xl font-bold text-gray-900">{cat.name}</h2>
                   {cat.description && (
-                    <span className="text-sm text-gray-400">— {cat.description}</span>
+                    <span className="hidden text-sm text-gray-400 md:inline">
+                      — {cat.description}
+                    </span>
                   )}
                   <Link
                     href={`/products/${cat.tagSlug}`}
@@ -130,96 +250,39 @@ export default async function HomePage() {
                   </Link>
                 </div>
 
-                {/* 速報 */}
-                {cat.breaking.length > 0 && (
-                  <div className="mb-4">
-                    <div className="mb-2 flex items-center gap-1.5">
-                      <span className="text-sm">⚡</span>
-                      <h3 className="text-sm font-semibold text-amber-700">速報</h3>
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {cat.breaking.map((article) => {
-                        const pTag = article.tags.find((t) => t.tag.axis === "PRODUCT");
-                        return (
-                          <BreakingCard
-                            key={article.id}
-                            slug={article.slug}
-                            title={article.title}
-                            summary3={article.summary3}
-                            productTag={pTag?.tag.name}
-                            recommendation={article.recommendation}
-                            publishedAt={article.publishedAt?.toISOString()}
-                            sourceUrl={article.sourceUrl}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
+                {/* メインカテゴリの記事 */}
+                {articles.length > 0 && (
+                  <DepthSections articles={articles} />
                 )}
 
-                {/* 詳細 */}
-                {cat.detailed.length > 0 && (
-                  <div className="mb-4">
-                    <div className="mb-2 flex items-center gap-1.5">
-                      <span className="text-sm">📋</span>
-                      <h3 className="text-sm font-semibold text-blue-700">詳しい情報</h3>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      {cat.detailed.map((article) => {
-                        const pTag = article.tags.find((t) => t.tag.axis === "PRODUCT");
-                        const lTag = article.tags.find((t) => t.tag.axis === "LEVEL");
-                        return (
-                          <ArticleCard
-                            key={article.id}
-                            slug={article.slug}
-                            title={article.title}
-                            summary3={article.summary3}
-                            compositeScore={article.compositeScore}
-                            trustScore={article.trustScore}
-                            importanceScore={article.importanceScore}
-                            urgencyScore={article.urgencyScore}
-                            recommendation={article.recommendation}
-                            productTag={pTag?.tag.name}
-                            levelTag={lTag?.tag.name}
-                            publishedAt={article.publishedAt?.toISOString()}
-                            sourceUrl={article.sourceUrl}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                {/* サブカテゴリ */}
+                {hasChildren && (
+                  <div className="mt-6 space-y-6">
+                    {cat.children.map((sub) => {
+                      const subArticles = getArticlesForCategory(sub, allArticles);
+                      if (subArticles.length === 0) return null;
 
-                {/* 深掘り */}
-                {cat.deep.length > 0 && (
-                  <div>
-                    <div className="mb-2 flex items-center gap-1.5">
-                      <span className="text-sm">🔬</span>
-                      <h3 className="text-sm font-semibold text-purple-700">深い情報</h3>
-                    </div>
-                    <div className="grid gap-3">
-                      {cat.deep.map((article) => {
-                        const pTag = article.tags.find((t) => t.tag.axis === "PRODUCT");
-                        return (
-                          <DeepCard
-                            key={article.id}
-                            slug={article.slug}
-                            title={article.title}
-                            summary3={article.summary3}
-                            summaryLong={article.summaryLong}
-                            whatChanged={article.whatChanged}
-                            whoImpacted={article.whoImpacted}
-                            actions={article.actions}
-                            compositeScore={article.compositeScore}
-                            trustScore={article.trustScore}
-                            recommendation={article.recommendation}
-                            productTag={pTag?.tag.name}
-                            publishedAt={article.publishedAt?.toISOString()}
-                            sourceUrl={article.sourceUrl}
-                          />
-                        );
-                      })}
-                    </div>
+                      return (
+                        <div
+                          key={sub.id}
+                          id={`cat-${sub.slug}`}
+                          className="scroll-mt-20 rounded-lg border border-gray-100 bg-gray-50/50 p-4"
+                        >
+                          <div className="mb-3 flex items-center gap-2">
+                            <span className="text-lg">{sub.icon}</span>
+                            <h3 className="text-base font-semibold text-gray-800">
+                              {sub.name}
+                            </h3>
+                            {sub.description && (
+                              <span className="text-xs text-gray-400">
+                                — {sub.description}
+                              </span>
+                            )}
+                          </div>
+                          <DepthSections articles={subArticles} />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </section>
