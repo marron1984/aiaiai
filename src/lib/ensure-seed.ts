@@ -68,6 +68,31 @@ async function syncLatestArticles(): Promise<void> {
 }
 
 /**
+ * ハブカテゴリを同期（存在しないカテゴリを追加）
+ */
+async function syncHubCategories(): Promise<void> {
+  const existing = await prisma.hubCategory.findMany({ select: { slug: true } });
+  const existingSlugs = new Set(existing.map((c) => c.slug));
+
+  const categories = [
+    { name: "AI全般", slug: "ai", icon: "🤖", tagSlug: "chatgpt", sortOrder: 1, description: "ChatGPT・Claude・Gemini等のAI最新情報" },
+    { name: "ポーカー", slug: "poker", icon: "🃏", tagSlug: "poker", sortOrder: 2, description: "WSOP・JOPT・WPT等の大会・戦略情報" },
+    { name: "AV", slug: "av", icon: "🎬", tagSlug: "av", sortOrder: 3, description: "新人・リリース・業界ニュース" },
+    { name: "大阪ローカル", slug: "osaka", icon: "🏯", tagSlug: "osaka-local", sortOrder: 4, description: "大阪のイベント・グルメ・生活情報" },
+  ];
+
+  let added = 0;
+  for (const cat of categories) {
+    if (existingSlugs.has(cat.slug)) continue;
+    await prisma.hubCategory.create({ data: cat });
+    added++;
+  }
+  if (added > 0) {
+    console.log(`[seed] Added ${added} hub categories`);
+  }
+}
+
+/**
  * Vercel初回デプロイ時にシードデータを自動作成
  * タグ・ソース・サンプル記事が0件なら一括作成する
  * 既にシード済みでも新規ソース・新規記事は追加する
@@ -76,9 +101,10 @@ export async function ensureSeedData(): Promise<void> {
   if (seeded) return;
 
   try {
-    // 既存DBでも新規ソース・記事は常に同期
+    // 既存DBでも新規ソース・記事・カテゴリは常に同期
     await syncSources();
     await syncLatestArticles();
+    await syncHubCategories();
 
     const tagCount = await prisma.tag.count();
     if (tagCount > 0) {
@@ -97,6 +123,8 @@ export async function ensureSeedData(): Promise<void> {
       { axis: "PRODUCT" as const, name: "Claude Code", slug: "claude-code", sortOrder: 4 },
       { axis: "PRODUCT" as const, name: "Gemini", slug: "gemini", sortOrder: 5 },
       { axis: "PRODUCT" as const, name: "ポーカー", slug: "poker", sortOrder: 6 },
+      { axis: "PRODUCT" as const, name: "AV", slug: "av", sortOrder: 7 },
+      { axis: "PRODUCT" as const, name: "大阪ローカル", slug: "osaka-local", sortOrder: 8 },
       // テーマ軸
       { axis: "THEME" as const, name: "アップデート", slug: "update", sortOrder: 1 },
       { axis: "THEME" as const, name: "料金", slug: "pricing", sortOrder: 2 },
@@ -644,6 +672,110 @@ function getLatestArticleDefs() {
       status: "PUBLISHED" as const,
       publishedAt: new Date("2026-02-22"),
       tagSlugs: ["poker", "tournament"],
+    },
+    // === AV ===
+    {
+      slug: "seto-kanna-2026-flash-ranking-1st",
+      title: "瀬戸環奈、2026年もFANZA通販1位を独走 — FLASH年間ランキングも制覇",
+      summary3: "瀬戸環奈がFANZA通販ランキングで2週連続1位を獲得しました。\nFLASHセクシー女優ランキング2025でも1位、上半期・下半期ともに首位の圧倒的な存在感。\n出典: FANZA / FLASH",
+      summaryLong: "瀬戸環奈の最新作『彼女の妹は最強ヒロイン!?』がFANZA通販フロアで2週連続1位にランクイン。光文社FLASH「セクシー女優ランキング2025」でも年間1位を獲得し、上半期・下半期両方で首位を維持する圧倒的な人気を誇っています。2026年のリリーススケジュールにも注目が集まっています。",
+      whatChanged: "2026年2月もFANZA通販1位、FLASHランキング年間1位",
+      whoImpacted: "AV業界ウォッチャー",
+      actions: "最新作と今後のリリーススケジュールをチェック。",
+      recommendation: "TRY" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://www.dmm.co.jp/digital/",
+      trustScore: 85, importanceScore: 70, noveltyScore: 65,
+      usefulnessScore: 70, urgencyScore: 20, compositeScore: 66.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-15"),
+      tagSlugs: ["av"],
+    },
+    {
+      slug: "kawagoe-niko-premium-nude-posebook-2026",
+      title: "川越にこ『プレミアムヌードポーズブック』2/25発売 — S1人気女優の写真集",
+      summary3: "S1所属の人気女優・川越にこの写真集『プレミアムヌードポーズブック』が2月25日に発売。\nデビュー作がFANZA週間ランキング上位を記録した注目の女優。\n出典: ジーオーティー",
+      summaryLong: null,
+      whatChanged: "川越にこの写真集発売",
+      whoImpacted: "ファン、写真集コレクター",
+      actions: "書店やオンラインで予約・購入。",
+      recommendation: "MONITOR" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://www.neowing.co.jp/g-idol/whatsnew",
+      trustScore: 80, importanceScore: 55, noveltyScore: 60,
+      usefulnessScore: 60, urgencyScore: 35, compositeScore: 58.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-25"),
+      tagSlugs: ["av"],
+    },
+    {
+      slug: "harukawa-neruru-gravure-debut-2026",
+      title: "春川ねるる グラビアデビュー — 2026年注目の新人",
+      summary3: "春川ねるるがデビューイメージを1月にリリースしました。\n2026年のグラビア/AV業界で注目の新人の一人。\n出典: Neowing",
+      summaryLong: null,
+      whatChanged: "春川ねるるデビューイメージ発売",
+      whoImpacted: "新人ウォッチャー",
+      actions: "今後のリリース情報をフォロー。",
+      recommendation: "MONITOR" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://www.neowing.co.jp/g-idol/whatsnew",
+      trustScore: 75, importanceScore: 50, noveltyScore: 70,
+      usefulnessScore: 55, urgencyScore: 15, compositeScore: 54.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-01-09"),
+      tagSlugs: ["av"],
+    },
+    // === 大阪ローカル ===
+    {
+      slug: "osaka-vietnam-festival-2026-03",
+      title: "ベトナムフェスティバル2026大阪 — 大阪城公園で3/7-8開催、入場無料",
+      summary3: "大阪城公園 太陽の広場でベトナムフェスティバルが3月7〜8日に開催されます。\n約70の本場グルメブース出店、昨年は10万人が来場の人気イベント。\n入場無料。\n出典: 大阪オンライン",
+      summaryLong: "ベトナムの人気アーティストによる音楽ステージや、約70の本場ベトナムグルメブースが出店する大規模イベントです。昨年は10万人が来場した人気イベントで、入場無料。大阪城公園というアクセスの良い会場で、週末のおでかけに最適です。",
+      whatChanged: "ベトナムフェスティバル大阪 3/7-8開催",
+      whoImpacted: "大阪在住のグルメ好き、週末のおでかけを探している方",
+      actions: "3/7-8の予定を空けて、大阪城公園へ。早めの時間帯が混雑回避におすすめ。",
+      recommendation: "TRY" as const,
+      depth: "DETAILED" as const,
+      sourceUrl: "https://osaka-online.jp/column/osaka-march-event/",
+      trustScore: 85, importanceScore: 70, noveltyScore: 65,
+      usefulnessScore: 80, urgencyScore: 60, compositeScore: 74.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-25"),
+      tagSlugs: ["osaka-local"],
+    },
+    {
+      slug: "sennan-kaki-matsuri-2026",
+      title: "泉南牡蠣まつり開催中 — 3/29まで SENNAN LONG PARKで旬の牡蠣を堪能",
+      summary3: "SENNAN LONG PARKで泉南牡蠣まつりが3月29日まで開催中。\n入場無料、旬の牡蠣を楽しめる期間限定イベント。\n3/8・3/21にはあったかいもんフェスも同時開催。\n出典: ウォーカープラス",
+      summaryLong: null,
+      whatChanged: "泉南牡蠣まつり〜3/29、あったかいもんフェス3/8・3/21同時開催",
+      whoImpacted: "大阪南部・泉南エリアの住民、牡蠣好き",
+      actions: "週末に泉南まで足を延ばして牡蠣を楽しんでみてください。",
+      recommendation: "TRY" as const,
+      depth: "BREAKING" as const,
+      sourceUrl: "https://www.walkerplus.com/event_list/ar0727/eg0117/",
+      trustScore: 80, importanceScore: 60, noveltyScore: 55,
+      usefulnessScore: 75, urgencyScore: 50, compositeScore: 66.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-20"),
+      tagSlugs: ["osaka-local"],
+    },
+    {
+      slug: "osaka-march-events-2026",
+      title: "【2026年3月】大阪イベント12選 — 梅まつり・フードフェス・展望台グルメまで",
+      summary3: "3月の大阪は梅まつりからフードフェスまでイベントが盛りだくさん。\nハルカス300展望台グルメ（〜3/29）、千里阪急ホテルラストフェア（〜3/30）なども。\n春休みで混雑するため早め行動がおすすめ。\n出典: 大阪オンライン",
+      summaryLong: "大阪の3月は多彩なイベントが目白押し。ズートピア2 OH MY CAFE（KITTE大阪、〜3/8）、都シティ大阪天王寺の本ズワイ蟹食べ放題ブッフェ（〜3/31）、ハルカス300展望台のおでん・鍋イベント（〜3/29）、56年の歴史に幕を閉じる千里阪急ホテルのラストフェア（〜3/30）など。春休みは混雑するため主要路線は1本早い電車がおすすめです。",
+      whatChanged: "2026年3月の大阪イベントまとめ",
+      whoImpacted: "大阪在住者、週末プランを探している方",
+      actions: "気になるイベントの日程を確認し、予約が必要なものは早めに手配。",
+      recommendation: "TRY" as const,
+      depth: "DEEP" as const,
+      sourceUrl: "https://osaka-online.jp/column/osaka-march-event/",
+      trustScore: 80, importanceScore: 65, noveltyScore: 60,
+      usefulnessScore: 80, urgencyScore: 55, compositeScore: 71.0,
+      status: "PUBLISHED" as const,
+      publishedAt: new Date("2026-02-26"),
+      tagSlugs: ["osaka-local"],
     },
   ];
 }

@@ -272,3 +272,19 @@ model AuditLog {
   @@index([target])
   @@index([articleId])
 }
+
+// ===== ハブカテゴリ（表示順・有効/無効を管理） =====
+model HubCategory {
+  id          String  @id @default(cuid())
+  name        String  // 表示名（例: "AI", "ポーカー", "AV"）
+  slug        String  @unique // URLスラッグ
+  icon        String  @default("📌") // 絵文字アイコン
+  tagSlug     String  // 紐付くProductタグのslug
+  sortOrder   Int     @default(0) // 表示順
+  isActive    Boolean @default(true) // 有効/無効
+  description String? // 説明文
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}

@@ -6,6 +6,7 @@ import { useState } from "react";
 
 const adminNav = [
   { href: "/admin", label: "ダッシュボード" },
+  { href: "/admin/categories", label: "カテゴリ管理" },
   { href: "/admin/sources", label: "ソース管理" },
   { href: "/admin/articles", label: "記事管理" },
   { href: "/admin/jobs", label: "ジョブ" },

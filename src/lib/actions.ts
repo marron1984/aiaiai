@@ -119,6 +119,119 @@ export async function triggerManualIngest() {
   revalidatePath("/admin");
 }
 
+// ===== カテゴリ操作 =====
+
+export async function toggleCategory(formData: FormData) {
+  const id = formData.get("id") as string;
+  const cat = await prisma.hubCategory.findUnique({ where: { id } });
+  if (!cat) return;
+
+  await prisma.hubCategory.update({
+    where: { id },
+    data: { isActive: !cat.isActive },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actor: "admin",
+      action: cat.isActive ? "category.deactivate" : "category.activate",
+      target: "HubCategory",
+      targetId: id,
+    },
+  });
+  revalidatePath("/admin/categories");
+  revalidatePath("/");
+}
+
+export async function moveCategoryUp(formData: FormData) {
+  const id = formData.get("id") as string;
+  const cat = await prisma.hubCategory.findUnique({ where: { id } });
+  if (!cat) return;
+
+  const prev = await prisma.hubCategory.findFirst({
+    where: { sortOrder: { lt: cat.sortOrder } },
+    orderBy: { sortOrder: "desc" },
+  });
+  if (!prev) return;
+
+  await prisma.$transaction([
+    prisma.hubCategory.update({
+      where: { id: cat.id },
+      data: { sortOrder: prev.sortOrder },
+    }),
+    prisma.hubCategory.update({
+      where: { id: prev.id },
+      data: { sortOrder: cat.sortOrder },
+    }),
+  ]);
+  revalidatePath("/admin/categories");
+  revalidatePath("/");
+}
+
+export async function moveCategoryDown(formData: FormData) {
+  const id = formData.get("id") as string;
+  const cat = await prisma.hubCategory.findUnique({ where: { id } });
+  if (!cat) return;
+
+  const next = await prisma.hubCategory.findFirst({
+    where: { sortOrder: { gt: cat.sortOrder } },
+    orderBy: { sortOrder: "asc" },
+  });
+  if (!next) return;
+
+  await prisma.$transaction([
+    prisma.hubCategory.update({
+      where: { id: cat.id },
+      data: { sortOrder: next.sortOrder },
+    }),
+    prisma.hubCategory.update({
+      where: { id: next.id },
+      data: { sortOrder: cat.sortOrder },
+    }),
+  ]);
+  revalidatePath("/admin/categories");
+  revalidatePath("/");
+}
+
+export async function createCategory(formData: FormData) {
+  const name = formData.get("name") as string;
+  const slug = formData.get("slug") as string;
+  const icon = (formData.get("icon") as string) || "📌";
+  const tagSlug = formData.get("tagSlug") as string;
+  const description = (formData.get("description") as string) || null;
+
+  const maxOrder = await prisma.hubCategory.aggregate({ _max: { sortOrder: true } });
+  const sortOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+
+  await prisma.hubCategory.create({
+    data: { name, slug, icon, tagSlug, sortOrder, description, isActive: true },
+  });
+  await prisma.auditLog.create({
+    data: {
+      actor: "admin",
+      action: "category.create",
+      target: "HubCategory",
+      diff: JSON.parse(JSON.stringify({ name, slug, tagSlug })),
+    },
+  });
+  revalidatePath("/admin/categories");
+  revalidatePath("/");
+}
+
+export async function deleteCategory(formData: FormData) {
+  const id = formData.get("id") as string;
+  await prisma.hubCategory.delete({ where: { id } });
+  await prisma.auditLog.create({
+    data: {
+      actor: "admin",
+      action: "category.delete",
+      target: "HubCategory",
+      targetId: id,
+    },
+  });
+  revalidatePath("/admin/categories");
+  revalidatePath("/");
+}
+
 // ===== ソース同期 =====
 
 export async function syncSources() {
