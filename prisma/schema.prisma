@@ -8,6 +8,24 @@ datasource db {
   directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
+// ===== ユーザー認証 =====
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  displayName  String
+  role         UserRole @default(VIEWER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([username])
+}
+
+enum UserRole {
+  ADMIN
+  VIEWER
+}
+
 // ===== ソース定義 =====
 model Source {
   id          String   @id @default(cuid())

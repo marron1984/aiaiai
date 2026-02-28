@@ -1,10 +1,43 @@
 import { PrismaClient } from "@prisma/client";
 import { MVP_SOURCES } from "../ingestion/sources/definitions";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10);
+}
+
 async function main() {
   console.log("Seeding database...");
+
+  // ===== ユーザー =====
+  const adminHash = await hashPassword("admin123");
+  const yoshidaHash = await hashPassword("yoshida123");
+
+  await prisma.user.upsert({
+    where: { username: "admin" },
+    update: { passwordHash: adminHash },
+    create: {
+      username: "admin",
+      passwordHash: adminHash,
+      displayName: "管理者",
+      role: "ADMIN",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { username: "yoshida" },
+    update: { passwordHash: yoshidaHash },
+    create: {
+      username: "yoshida",
+      passwordHash: yoshidaHash,
+      displayName: "吉田",
+      role: "VIEWER",
+    },
+  });
+
+  console.log("Created users: admin / yoshida");
 
   // ===== タグ =====
   const tags = await Promise.all([
