@@ -389,10 +389,10 @@ async function createArticleFromRawItem(
     topicClusterId = cluster.id;
   }
 
-  // X（SNS速報）は「速報」ラベルで隔離（裏取り前は昇格しない）
+  // X（SNS速報）も含めすべて即公開
   const isXSource = meta.sourceType === "X";
-  const articleTitle = isXSource ? candidate.title : candidate.title;
-  const articleStatus = isXSource ? "DRAFT" : "PUBLISHED"; // X速報のみDRAFT、それ以外は即公開
+  const articleTitle = candidate.title;
+  const articleStatus = "PUBLISHED" as const;
 
   // 記事作成
   const article = await prisma.article.create({

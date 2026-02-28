@@ -4,13 +4,47 @@ import { MVP_SOURCES } from "../../ingestion/sources/definitions";
 let seeded = false;
 
 /**
+ * ソース定義をDBに同期（新規追加のみ、既存は変更しない）
+ */
+async function syncSources(): Promise<void> {
+  const existing = await prisma.source.findMany({ select: { slug: true } });
+  const existingSlugs = new Set(existing.map((s) => s.slug));
+
+  let added = 0;
+  for (const def of MVP_SOURCES) {
+    if (existingSlugs.has(def.slug)) continue;
+    await prisma.source.create({
+      data: {
+        name: def.name,
+        slug: def.slug,
+        type: def.type,
+        url: def.url,
+        feedUrl: def.feedUrl || null,
+        frequency: def.frequency,
+        trustScore: def.trustScore,
+        legalNotes: def.legalNotes || null,
+        isActive: true,
+      },
+    });
+    added++;
+  }
+  if (added > 0) {
+    console.log(`[seed] Added ${added} new sources (total: ${MVP_SOURCES.length})`);
+  }
+}
+
+/**
  * Vercel初回デプロイ時にシードデータを自動作成
  * タグ・ソース・サンプル記事が0件なら一括作成する
+ * 既にシード済みでも新規ソースは追加する
  */
 export async function ensureSeedData(): Promise<void> {
   if (seeded) return;
 
   try {
+    // 既存DBでも新規ソースは常に同期
+    await syncSources();
+
     const tagCount = await prisma.tag.count();
     if (tagCount > 0) {
       seeded = true;
