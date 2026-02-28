@@ -392,9 +392,9 @@ async function createArticleFromRawItem(
   // X（SNS速報）は「速報」ラベルで隔離（裏取り前は昇格しない）
   const isXSource = meta.sourceType === "X";
   const articleTitle = isXSource ? candidate.title : candidate.title;
-  const articleStatus = isXSource ? "DRAFT" : "DRAFT"; // どちらもDRAFTだが意図を明示
+  const articleStatus = isXSource ? "DRAFT" : "PUBLISHED"; // X速報のみDRAFT、それ以外は即公開
 
-  // 記事作成（下書き状態）
+  // 記事作成
   const article = await prisma.article.create({
     data: {
       slug,

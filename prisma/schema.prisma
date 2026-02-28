@@ -153,7 +153,7 @@ model Article {
   urgencyScore    Int           @default(50)
   compositeScore  Float         @default(50)  // 合成スコア
 
-  status          ArticleStatus @default(DRAFT)
+  status          ArticleStatus @default(PUBLISHED)
   publishedAt     DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
