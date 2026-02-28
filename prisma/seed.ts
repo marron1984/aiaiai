@@ -127,6 +127,36 @@ async function main() {
       update: {},
       create: { axis: "PRODUCT", name: "ミナミ", slug: "minami", sortOrder: 17 },
     }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-ai" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪AI", slug: "osaka-ai", sortOrder: 18 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-startup" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪起業", slug: "osaka-startup", sortOrder: 19 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-uzbek" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪ウズベキスタン", slug: "osaka-uzbek", sortOrder: 20 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-hotel" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪ホテル", slug: "osaka-hotel", sortOrder: 21 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-perfume" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪香水", slug: "osaka-perfume", sortOrder: 22 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "osaka-gadget" },
+      update: {},
+      create: { axis: "PRODUCT", name: "大阪ガジェット", slug: "osaka-gadget", sortOrder: 23 },
+    }),
     // テーマ軸
     prisma.tag.upsert({
       where: { slug: "update" },
