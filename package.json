@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && (npx prisma migrate deploy || true) && next build",
+    "build": "prisma generate && (prisma db push --skip-generate || echo 'WARNING: prisma db push failed') && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",

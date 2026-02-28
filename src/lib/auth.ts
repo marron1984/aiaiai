@@ -86,8 +86,10 @@ export async function login(
     });
 
     return { success: true };
-  } catch {
-    return { success: false, error: "ログイン処理でエラーが発生しました" };
+  } catch (e) {
+    console.error("[auth] login error:", e);
+    const message = e instanceof Error ? e.message : "不明なエラー";
+    return { success: false, error: `ログインエラー: ${message}` };
   }
 }
 
