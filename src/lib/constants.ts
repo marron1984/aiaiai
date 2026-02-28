@@ -37,6 +37,13 @@ export const TAG_AXES = {
   USECASE: "実務用途",
 } as const;
 
+// 記事深度ラベル
+export const DEPTH_LABELS = {
+  BREAKING: { label: "速報", icon: "⚡", color: "bg-amber-50 text-amber-700 ring-amber-200", description: "今起きていること" },
+  DETAILED: { label: "詳細", icon: "📋", color: "bg-blue-50 text-blue-700 ring-blue-200", description: "何が変わったか" },
+  DEEP: { label: "深掘り", icon: "🔬", color: "bg-purple-50 text-purple-700 ring-purple-200", description: "なぜ重要か" },
+} as const;
+
 // レベル定義
 export const LEVELS = {
   L1: "活用（使い方/運用/社内展開）",

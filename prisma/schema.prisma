@@ -142,6 +142,7 @@ model Article {
   whoImpacted     String?       // 誰に影響があるか
   actions         String?       // 実務でどう使えるか
   recommendation  Recommendation @default(MONITOR) // Try/Monitor/Ignore
+  depth           ArticleDepth   @default(DETAILED) // 速報/詳細/深掘り
   sourceUrl       String        // 原典リンク
   imageUrl        String?
 
@@ -169,6 +170,13 @@ model Article {
   @@index([compositeScore])
   @@index([publishedAt])
   @@index([topicClusterId])
+  @@index([depth])
+}
+
+enum ArticleDepth {
+  BREAKING  // 速報 — 短く速い情報
+  DETAILED  // 詳細 — 標準的な記事
+  DEEP      // 深掘り — 分析・解説
 }
 
 enum Recommendation {
