@@ -12,9 +12,16 @@ interface ArticleCardProps {
   urgencyScore: number;
   recommendation: "TRY" | "MONITOR" | "IGNORE";
   productTag?: string;
+  levelTag?: string;
   publishedAt?: string;
   sourceUrl: string;
 }
+
+const LEVEL_COLORS: Record<string, string> = {
+  "L1: 活用": "bg-green-50 text-green-700 ring-green-200",
+  "L2: 定着/自動化": "bg-teal-50 text-teal-700 ring-teal-200",
+  "L3: 実装": "bg-purple-50 text-purple-700 ring-purple-200",
+};
 
 export function ArticleCard({
   slug,
@@ -26,6 +33,7 @@ export function ArticleCard({
   urgencyScore,
   recommendation,
   productTag,
+  levelTag,
   publishedAt,
   sourceUrl,
 }: ArticleCardProps) {
@@ -43,6 +51,11 @@ export function ArticleCard({
           </span>
         )}
         <span className={`badge ${rec.color}`}>{rec.label}</span>
+        {levelTag && (
+          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${LEVEL_COLORS[levelTag] || "bg-gray-50 text-gray-600 ring-gray-200"}`}>
+            {levelTag}
+          </span>
+        )}
         {urgencyScore >= 70 && (
           <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">
             緊急

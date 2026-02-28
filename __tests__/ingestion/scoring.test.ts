@@ -90,7 +90,7 @@ describe("合成スコア計算", () => {
   });
 
   it("重み付けが正しく反映される", () => {
-    // trust=100, others=0 → 100 * 0.3 = 30
+    // trust=100, others=0 → 100 * 0.20 = 20
     const score = calculateCompositeScore({
       trustScore: 100,
       usefulnessScore: 0,
@@ -98,7 +98,7 @@ describe("合成スコア計算", () => {
       noveltyScore: 0,
       urgencyScore: 0,
     });
-    expect(score).toBe(30);
+    expect(score).toBe(20);
   });
 });
 

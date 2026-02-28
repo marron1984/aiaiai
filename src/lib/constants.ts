@@ -5,12 +5,13 @@ export const SITE_DESCRIPTION =
   "日々進化するAI情報を一手に集約する高品質日本語情報サイト";
 
 // スコアリング重み
+// 吉田ペルソナ: 忙しい実務者 → 有用性を最重視、次に重要度
 export const SCORE_WEIGHTS = {
-  trust: 0.3,
-  usefulness: 0.25,
-  importance: 0.2,
+  usefulness: 0.30,
+  importance: 0.25,
+  trust: 0.20,
   novelty: 0.15,
-  urgency: 0.1,
+  urgency: 0.10,
 } as const;
 
 // ソース信頼ヒエラルキー
