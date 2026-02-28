@@ -115,5 +115,61 @@ export async function triggerManualIngest() {
   await runDailyJob();
   revalidatePath("/admin/jobs");
   revalidatePath("/admin/articles");
+  revalidatePath("/admin/sources");
   revalidatePath("/admin");
+}
+
+// ===== ソース同期 =====
+
+export async function syncSources() {
+  const { MVP_SOURCES } = await import("../../ingestion/sources/definitions");
+
+  let created = 0;
+  let updated = 0;
+
+  for (const def of MVP_SOURCES) {
+    const existing = await prisma.source.findUnique({
+      where: { slug: def.slug },
+    });
+
+    if (!existing) {
+      await prisma.source.create({
+        data: {
+          name: def.name,
+          slug: def.slug,
+          type: def.type,
+          url: def.url,
+          feedUrl: def.feedUrl || null,
+          frequency: def.frequency,
+          trustScore: def.trustScore,
+          legalNotes: def.legalNotes || null,
+          isActive: true,
+        },
+      });
+      created++;
+    } else if (
+      existing.url !== def.url ||
+      existing.feedUrl !== (def.feedUrl || null)
+    ) {
+      await prisma.source.update({
+        where: { slug: def.slug },
+        data: {
+          url: def.url,
+          feedUrl: def.feedUrl || null,
+        },
+      });
+      updated++;
+    }
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "admin",
+      action: "sources.sync",
+      target: "Source",
+      diff: { created, updated, total: MVP_SOURCES.length },
+    },
+  });
+
+  revalidatePath("/admin/sources");
 }

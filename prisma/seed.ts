@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { MVP_SOURCES } from "../ingestion/sources/definitions";
 
 const prisma = new PrismaClient();
 
@@ -105,103 +106,31 @@ async function main() {
 
   console.log(`Created ${tags.length} tags`);
 
-  // ===== ソース =====
-  const sources = await Promise.all([
-    prisma.source.upsert({
-      where: { slug: "chatgpt-release-notes-ja" },
-      update: {},
-      create: {
-        name: "ChatGPT リリースノート（日本語）",
-        slug: "chatgpt-release-notes-ja",
-        type: "OFFICIAL",
-        url: "https://help.openai.com/ja-jp/articles/6825453-chatgpt-%E3%83%AA%E3%83%AA%E3%83%BC%E3%82%B9%E3%83%8E%E3%83%BC%E3%83%88",
-        frequency: "DAILY",
-        trustScore: 95,
-        legalNotes: "公式ヘルプページ。要約・引用のみ。全文転載禁止。",
+  // ===== ソース（definitions.ts から自動生成）=====
+  let sourceCount = 0;
+  for (const def of MVP_SOURCES) {
+    await prisma.source.upsert({
+      where: { slug: def.slug },
+      update: {
+        url: def.url,
+        feedUrl: def.feedUrl || null,
       },
-    }),
-    prisma.source.upsert({
-      where: { slug: "chatgpt-release-notes-en" },
-      update: {},
       create: {
-        name: "ChatGPT Release Notes (EN)",
-        slug: "chatgpt-release-notes-en",
-        type: "OFFICIAL",
-        url: "https://help.openai.com/en/articles/6825453-chatgpt-release-notes",
-        frequency: "DAILY",
-        trustScore: 95,
-        legalNotes: "公式ヘルプページ。要約・引用のみ。",
+        name: def.name,
+        slug: def.slug,
+        type: def.type,
+        url: def.url,
+        feedUrl: def.feedUrl || null,
+        frequency: def.frequency,
+        trustScore: def.trustScore,
+        legalNotes: def.legalNotes || null,
+        isActive: true,
       },
-    }),
-    prisma.source.upsert({
-      where: { slug: "openai-developers-changelog" },
-      update: {},
-      create: {
-        name: "OpenAI Developers Changelog",
-        slug: "openai-developers-changelog",
-        type: "RSS",
-        url: "https://developers.openai.com/changelog/",
-        feedUrl: "https://developers.openai.com/changelog/rss.xml",
-        frequency: "DAILY",
-        trustScore: 95,
-        legalNotes: "公式Developer changelog。RSS配信あり。",
-      },
-    }),
-    prisma.source.upsert({
-      where: { slug: "claude-platform-release-notes" },
-      update: {},
-      create: {
-        name: "Claude Developer Platform Release Notes",
-        slug: "claude-platform-release-notes",
-        type: "OFFICIAL",
-        url: "https://docs.anthropic.com/en/docs/about-claude/models",
-        frequency: "DAILY",
-        trustScore: 95,
-        legalNotes: "公式リリースノート。",
-      },
-    }),
-    prisma.source.upsert({
-      where: { slug: "claude-code-github-releases" },
-      update: {},
-      create: {
-        name: "Claude Code GitHub Releases",
-        slug: "claude-code-github-releases",
-        type: "GITHUB",
-        url: "https://github.com/anthropics/claude-code",
-        frequency: "DAILY",
-        trustScore: 90,
-        legalNotes: "GitHub REST API利用。レート制限遵守。",
-      },
-    }),
-    prisma.source.upsert({
-      where: { slug: "gemini-app-release-notes-ja" },
-      update: {},
-      create: {
-        name: "Gemini アプリ リリースノート（日本語）",
-        slug: "gemini-app-release-notes-ja",
-        type: "OFFICIAL",
-        url: "https://blog.google/products/gemini/",
-        frequency: "DAILY",
-        trustScore: 95,
-        legalNotes: "公式リリースノート。",
-      },
-    }),
-    prisma.source.upsert({
-      where: { slug: "gemini-api-changelog" },
-      update: {},
-      create: {
-        name: "Gemini API Changelog",
-        slug: "gemini-api-changelog",
-        type: "OFFICIAL",
-        url: "https://ai.google.dev/gemini-api/docs/changelog",
-        frequency: "DAILY",
-        trustScore: 90,
-        legalNotes: "公式API changelog。",
-      },
-    }),
-  ]);
+    });
+    sourceCount++;
+  }
 
-  console.log(`Created ${sources.length} sources`);
+  console.log(`Created/updated ${sourceCount} sources (from definitions.ts)`);
 
   // ===== サンプル記事 =====
   const chatgptTag = tags.find((t) => t.slug === "chatgpt")!;

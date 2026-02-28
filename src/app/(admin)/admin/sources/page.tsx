@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { createSource, toggleSource } from "@/lib/actions";
+import { createSource, toggleSource, syncSources } from "@/lib/actions";
 import { DbErrorBanner } from "@/components/DbErrorBanner";
 import { safeQuery } from "@/lib/safe-query";
 
@@ -19,7 +19,17 @@ export default async function AdminSourcesPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">ソース管理</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">ソース管理</h1>
+        <form action={syncSources}>
+          <button
+            type="submit"
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
+          >
+            ソース定義を同期
+          </button>
+        </form>
+      </div>
 
       {error && <DbErrorBanner />}
 
