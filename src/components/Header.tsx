@@ -8,6 +8,7 @@ const navItems = [
   { href: "/products/chatgpt", label: "ChatGPT" },
   { href: "/products/claude", label: "Claude" },
   { href: "/products/gemini", label: "Gemini" },
+  { href: "/products/poker", label: "ポーカー" },
   { href: "/weekly", label: "週次" },
   { href: "/sources", label: "ソース" },
   { href: "/search", label: "検索" },

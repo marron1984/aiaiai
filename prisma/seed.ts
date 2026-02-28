@@ -67,11 +67,26 @@ async function main() {
       update: {},
       create: { axis: "PRODUCT", name: "Gemini", slug: "gemini", sortOrder: 5 },
     }),
+    prisma.tag.upsert({
+      where: { slug: "poker" },
+      update: {},
+      create: { axis: "PRODUCT", name: "ポーカー", slug: "poker", sortOrder: 6 },
+    }),
     // テーマ軸
     prisma.tag.upsert({
       where: { slug: "update" },
       update: {},
       create: { axis: "THEME", name: "アップデート", slug: "update", sortOrder: 1 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "tournament" },
+      update: {},
+      create: { axis: "THEME", name: "大会", slug: "tournament", sortOrder: 6 },
+    }),
+    prisma.tag.upsert({
+      where: { slug: "strategy" },
+      update: {},
+      create: { axis: "THEME", name: "戦略", slug: "strategy", sortOrder: 7 },
     }),
     prisma.tag.upsert({
       where: { slug: "pricing" },
