@@ -193,12 +193,40 @@ export default async function HomePage() {
           </div>
         )}
 
-        <div className="mt-5 flex items-center justify-center gap-3">
+        {/* 日次ダイジェスト・午前/午後ボタン */}
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          <Link
+            href="/daily"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-orange-600"
+          >
+            <span>📅</span> 今日のダイジェスト
+          </Link>
+          <Link
+            href="/daily#am"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2.5 text-sm font-bold text-amber-900 shadow-sm transition-colors hover:bg-amber-500"
+          >
+            <span>🌅</span> 午前
+          </Link>
+          <Link
+            href="/daily#pm"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-indigo-600"
+          >
+            <span>🌆</span> 午後
+          </Link>
+        </div>
+
+        <div className="mt-3 flex items-center justify-center gap-3">
           <Link
             href="/latest"
             className="rounded-lg bg-white px-5 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-100"
           >
             すべての記事
+          </Link>
+          <Link
+            href="/weekly"
+            className="rounded-lg border border-white/30 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+          >
+            週次ダイジェスト
           </Link>
           <Link
             href="/search"
