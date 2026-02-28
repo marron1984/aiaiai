@@ -55,11 +55,21 @@ export function scoreArticle(input: ScoringInput): ScoringOutput {
   noveltyScore = Math.min(100, noveltyScore);
 
   // 有用性スコア
+  // 吉田ペルソナ（Biz実装層/L1-L2）向け: 活用・業務・導入系キーワードを重視
   let usefulnessScore = 50;
   if (combinedText.includes("how to") || combinedText.includes("使い方") || combinedText.includes("手順")) {
     usefulnessScore += 20;
   }
   if (input.isJapaneseRelated) usefulnessScore += 15;
+  // 吉田レベルに刺さるキーワード: 業務活用・導入・ワークフロー・事例
+  const bizKeywords = [
+    "活用", "導入", "業務", "ワークフロー", "事例", "プロンプト",
+    "効率化", "自動化", "運用", "チーム", "組織", "生産性",
+    "使ってみた", "やってみた", "まとめ", "比較", "入門",
+    "ノーコード", "tips", "テンプレート", "実践",
+  ];
+  const bizHits = bizKeywords.filter((kw) => combinedText.includes(kw)).length;
+  usefulnessScore += Math.min(30, bizHits * 10);
   usefulnessScore = Math.min(100, usefulnessScore);
 
   // 緊急度スコア

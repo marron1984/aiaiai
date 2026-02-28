@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { fetchRss } from "../fetchers/rss";
 import { fetchGitHubReleases } from "../fetchers/github";
 import { fetchHtmlPage } from "../fetchers/html";
+import { fetchOfficialXPosts, fetchAITopicXPosts } from "../fetchers/x";
 import { normalizeUrl } from "../normalize/url";
 import { normalizeTitle } from "../normalize/title";
 import { deduplicateItems, DedupeCandidate } from "../dedupe/dedup";
@@ -72,16 +73,49 @@ function getProductTagSlugs(sourceSlug: string): string[] {
 
 /**
  * 記事にタグを自動付与
+ * 吉田ペルソナ（Biz実装層 L1-L2）向けレベルタグも自動判定
  */
 async function autoTagArticle(
   articleId: string,
-  sourceSlug: string
+  sourceSlug: string,
+  title: string,
+  content?: string
 ): Promise<void> {
   const tagSlugs = getProductTagSlugs(sourceSlug);
   // 「アップデート」タグも自動付与
   tagSlugs.push("update");
 
-  for (const slug of tagSlugs) {
+  // レベル自動判定（吉田ペルソナ向け）
+  const combinedText = `${title} ${content || ""}`.toLowerCase();
+  const l1Keywords = ["活用", "使い方", "入門", "使ってみた", "やってみた", "tips", "ノーコード", "プロンプト", "テンプレート"];
+  const l2Keywords = ["自動化", "ワークフロー", "連携", "運用", "効率化", "組織", "導入"];
+  const l3Keywords = ["api", "sdk", "実装", "migration", "breaking", "互換性", "セキュリティ"];
+
+  const l1Hits = l1Keywords.filter((kw) => combinedText.includes(kw)).length;
+  const l2Hits = l2Keywords.filter((kw) => combinedText.includes(kw)).length;
+  const l3Hits = l3Keywords.filter((kw) => combinedText.includes(kw)).length;
+
+  if (l1Hits >= l2Hits && l1Hits >= l3Hits && l1Hits > 0) {
+    tagSlugs.push("l1-usage");
+  } else if (l2Hits >= l3Hits && l2Hits > 0) {
+    tagSlugs.push("l2-automation");
+  } else if (l3Hits > 0) {
+    tagSlugs.push("l3-implementation");
+  }
+
+  // 実務用途タグの自動判定
+  const devKeywords = ["api", "sdk", "開発", "実装", "コード", "エンジニア"];
+  const planningKeywords = ["企画", "マーケ", "プロンプト", "活用事例", "業務"];
+  if (devKeywords.some((kw) => combinedText.includes(kw))) {
+    tagSlugs.push("development");
+  }
+  if (planningKeywords.some((kw) => combinedText.includes(kw))) {
+    tagSlugs.push("planning");
+  }
+
+  // 重複除去してタグ付与
+  const uniqueSlugs = [...new Set(tagSlugs)];
+  for (const slug of uniqueSlugs) {
     const tag = await prisma.tag.findUnique({ where: { slug } });
     if (!tag) continue;
 
@@ -147,6 +181,9 @@ export async function runDailyJob(): Promise<DailyJobResult> {
     try {
       let items: FetchedItem[] = [];
 
+      // ソース定義からfetchMethodを取得
+      const sourceDef = MVP_SOURCES.find((s) => s.slug === source.slug);
+
       switch (source.type) {
         case "RSS":
           if (source.feedUrl) {
@@ -158,6 +195,20 @@ export async function runDailyJob(): Promise<DailyJobResult> {
           break;
         case "OFFICIAL":
           items = await fetchHtmlPage(source.url);
+          break;
+        case "X":
+          // X API v2 経由で取得（スクレイピング禁止）
+          if (!process.env.X_BEARER_TOKEN) {
+            // トークン未設定時はスキップ（エラーにしない）
+            break;
+          }
+          if (sourceDef?.fetchMethod === "x-search") {
+            items = await fetchAITopicXPosts();
+          } else {
+            // 公式アカウントからの取得
+            const username = source.url.replace(/^https?:\/\/(x\.com|twitter\.com)\//, "");
+            items = await fetchOfficialXPosts(username);
+          }
           break;
         default:
           break;
@@ -253,7 +304,7 @@ export async function runDailyJob(): Promise<DailyJobResult> {
         cluster.map((c) => c.id)
       );
       if (articleId) {
-        await autoTagArticle(articleId, meta.sourceSlug);
+        await autoTagArticle(articleId, meta.sourceSlug, representative.title, meta.item.content);
         result.articlesCreated++;
       }
     }
@@ -265,7 +316,7 @@ export async function runDailyJob(): Promise<DailyJobResult> {
 
       const articleId = await createArticleFromRawItem(item, meta, [item.id]);
       if (articleId) {
-        await autoTagArticle(articleId, meta.sourceSlug);
+        await autoTagArticle(articleId, meta.sourceSlug, item.title, meta.item.content);
         result.articlesCreated++;
       }
     }
@@ -338,25 +389,36 @@ async function createArticleFromRawItem(
     topicClusterId = cluster.id;
   }
 
+  // X（SNS速報）は「速報」ラベルで隔離（裏取り前は昇格しない）
+  const isXSource = meta.sourceType === "X";
+  const articleTitle = isXSource ? candidate.title : candidate.title;
+  const articleStatus = isXSource ? "DRAFT" : "DRAFT"; // どちらもDRAFTだが意図を明示
+
   // 記事作成（下書き状態）
   const article = await prisma.article.create({
     data: {
       slug,
-      title: candidate.title,
-      summary3: summary.summary3,
+      title: articleTitle,
+      summary3: isXSource
+        ? `⚡ 速報（未検証）\n${summary.summary3}`
+        : summary.summary3,
       summaryLong: summary.summaryLong,
       whatChanged: summary.whatChanged,
       whoImpacted: summary.whoImpacted,
-      actions: summary.actions,
-      recommendation: scores.recommendation,
+      actions: isXSource
+        ? "この情報はSNS速報です。公式発表を確認してから判断してください。"
+        : summary.actions,
+      recommendation: isXSource ? "MONITOR" as const : scores.recommendation,
       sourceUrl: candidate.canonicalUrl,
       trustScore: scores.trustScore,
       importanceScore: scores.importanceScore,
       noveltyScore: scores.noveltyScore,
       usefulnessScore: scores.usefulnessScore,
       urgencyScore: scores.urgencyScore,
-      compositeScore: scores.compositeScore,
-      status: "DRAFT", // 管理者承認待ち
+      compositeScore: isXSource
+        ? Math.min(scores.compositeScore, 50)
+        : scores.compositeScore,
+      status: articleStatus,
       publishedAt: meta.item.publishedAt,
       topicClusterId,
     },
