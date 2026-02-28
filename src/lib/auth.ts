@@ -21,6 +21,27 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
+ * 初期ユーザーが存在しない場合に自動作成
+ */
+async function ensureInitialUsers(): Promise<void> {
+  const count = await prisma.user.count();
+  if (count > 0) return;
+
+  console.log("[auth] No users found — creating initial users...");
+  const adminHash = await hashPassword("admin123");
+  const yoshidaHash = await hashPassword("yoshida123");
+
+  await prisma.user.createMany({
+    data: [
+      { username: "admin", passwordHash: adminHash, displayName: "管理者", role: "ADMIN" },
+      { username: "yoshida", passwordHash: yoshidaHash, displayName: "吉田", role: "VIEWER" },
+    ],
+    skipDuplicates: true,
+  });
+  console.log("[auth] Initial users created: admin / yoshida");
+}
+
+/**
  * ログイン処理
  * ユーザー名・パスワードを検証し、セッションCookieをセット
  */
@@ -29,6 +50,9 @@ export async function login(
   password: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // 初回デプロイ時: ユーザーが0人なら自動作成
+    await ensureInitialUsers();
+
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) {
       return { success: false, error: "ユーザー名またはパスワードが正しくありません" };
