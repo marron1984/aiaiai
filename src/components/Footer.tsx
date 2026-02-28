@@ -5,7 +5,7 @@ export function Footer() {
   return (
     <footer className="mt-16 border-t border-gray-200 bg-gray-50">
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <div className="grid gap-8 md:grid-cols-3">
+        <div className="grid gap-8 md:grid-cols-4">
           <div>
             <h3 className="font-bold text-gray-900">{SITE_NAME}</h3>
             <p className="mt-2 text-sm text-gray-600">{SITE_DESCRIPTION}</p>
@@ -46,6 +46,21 @@ export function Footer() {
               <li>
                 <Link href="/products/gemini" className="hover:text-gray-900">
                   Gemini
+                </Link>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">管理</h4>
+            <ul className="mt-2 space-y-1 text-sm text-gray-600">
+              <li>
+                <Link href="/admin" className="hover:text-gray-900">
+                  管理画面
+                </Link>
+              </li>
+              <li>
+                <Link href="/login" className="hover:text-gray-900">
+                  ログイン
                 </Link>
               </li>
             </ul>

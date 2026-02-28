@@ -34,12 +34,21 @@ export async function Header() {
               </Link>
             ))}
           </nav>
-          {session && (
+          {session ? (
             <div className="ml-3 border-l border-gray-200 pl-3">
               <UserMenu
                 displayName={session.displayName}
                 role={session.role}
               />
+            </div>
+          ) : (
+            <div className="ml-3 border-l border-gray-200 pl-3">
+              <Link
+                href="/login"
+                className="rounded-md px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+              >
+                ログイン
+              </Link>
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -29,6 +30,14 @@ export function UserMenu({ displayName, role }: Props) {
           </span>
         )}
       </span>
+      {role === "ADMIN" && (
+        <Link
+          href="/admin"
+          className="rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-800"
+        >
+          管理画面
+        </Link>
+      )}
       <button
         onClick={handleLogout}
         disabled={loading}
