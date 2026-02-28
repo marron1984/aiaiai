@@ -1,12 +1,15 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MobileNav } from "@/components/MobileNav";
+import { ensureSeedData } from "@/lib/ensure-seed";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await ensureSeedData();
+
   return (
     <>
       <Header />
