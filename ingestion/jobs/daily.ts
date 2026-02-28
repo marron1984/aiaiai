@@ -7,6 +7,7 @@ import { normalizeTitle } from "../normalize/title";
 import { deduplicateItems, DedupeCandidate } from "../dedupe/dedup";
 import { scoreArticle } from "../score/scoring";
 import { generateTemplateSummary } from "../summarize/template";
+import { MVP_SOURCES } from "../sources/definitions";
 import type { FetchedItem } from "../fetchers/rss";
 
 const prisma = new PrismaClient();
@@ -15,20 +16,105 @@ export interface DailyJobResult {
   sourcesProcessed: number;
   itemsFetched: number;
   articlesCreated: number;
+  sourcesSynced: number;
   errors: string[];
 }
 
 /**
+ * ソース定義をDBに同期
+ * definitions.ts に定義されたソースが DB に存在しなければ自動登録
+ */
+async function syncSourceDefinitions(): Promise<number> {
+  let synced = 0;
+
+  for (const def of MVP_SOURCES) {
+    const existing = await prisma.source.findUnique({
+      where: { slug: def.slug },
+    });
+
+    if (!existing) {
+      await prisma.source.create({
+        data: {
+          name: def.name,
+          slug: def.slug,
+          type: def.type,
+          url: def.url,
+          feedUrl: def.feedUrl || null,
+          frequency: def.frequency,
+          trustScore: def.trustScore,
+          legalNotes: def.legalNotes || null,
+          isActive: true,
+        },
+      });
+      synced++;
+    } else if (existing.url !== def.url || existing.feedUrl !== (def.feedUrl || null)) {
+      // URL変更があれば更新
+      await prisma.source.update({
+        where: { slug: def.slug },
+        data: {
+          url: def.url,
+          feedUrl: def.feedUrl || null,
+        },
+      });
+    }
+  }
+
+  return synced;
+}
+
+/**
+ * ソースslugからプロダクトタグslugを取得
+ */
+function getProductTagSlugs(sourceSlug: string): string[] {
+  const def = MVP_SOURCES.find((s) => s.slug === sourceSlug);
+  return def?.productTagSlugs || [];
+}
+
+/**
+ * 記事にタグを自動付与
+ */
+async function autoTagArticle(
+  articleId: string,
+  sourceSlug: string
+): Promise<void> {
+  const tagSlugs = getProductTagSlugs(sourceSlug);
+  // 「アップデート」タグも自動付与
+  tagSlugs.push("update");
+
+  for (const slug of tagSlugs) {
+    const tag = await prisma.tag.findUnique({ where: { slug } });
+    if (!tag) continue;
+
+    await prisma.articleTag.upsert({
+      where: {
+        articleId_tagId: { articleId, tagId: tag.id },
+      },
+      update: {},
+      create: { articleId, tagId: tag.id },
+    });
+  }
+}
+
+/**
  * 日次収集ジョブ
- * Fetch → Parse → Normalize → Dedupe → Summarize → Score → 保存
+ * Sync → Fetch → Parse → Normalize → Dedupe → Summarize → Score → 保存
  */
 export async function runDailyJob(): Promise<DailyJobResult> {
   const result: DailyJobResult = {
     sourcesProcessed: 0,
     itemsFetched: 0,
     articlesCreated: 0,
+    sourcesSynced: 0,
     errors: [],
   };
+
+  // ソース定義をDBに同期
+  try {
+    result.sourcesSynced = await syncSourceDefinitions();
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Source sync: ${msg}`);
+  }
 
   // アクティブなソースを取得
   const sources = await prisma.source.findMany({
@@ -43,6 +129,7 @@ export async function runDailyJob(): Promise<DailyJobResult> {
       sourceId: string;
       sourceType: string;
       sourceName: string;
+      sourceSlug: string;
       jobRunId: string;
     }
   >();
@@ -83,6 +170,9 @@ export async function runDailyJob(): Promise<DailyJobResult> {
         const canonicalUrl = normalizeUrl(item.url);
         const title = normalizeTitle(item.title);
 
+        // 空タイトルスキップ
+        if (!title || title === "untitled") continue;
+
         // 既存チェック（URL重複回避）
         const existing = await prisma.rawItem.findUnique({
           where: { canonicalUrl },
@@ -114,6 +204,7 @@ export async function runDailyJob(): Promise<DailyJobResult> {
           sourceId: source.id,
           sourceType: source.type,
           sourceName: source.name,
+          sourceSlug: source.slug,
           jobRunId: jobRun.id,
         });
 
@@ -156,12 +247,15 @@ export async function runDailyJob(): Promise<DailyJobResult> {
       const meta = rawItemsMap.get(representative.id);
       if (!meta) continue;
 
-      await createArticleFromRawItem(
+      const articleId = await createArticleFromRawItem(
         representative,
         meta,
         cluster.map((c) => c.id)
       );
-      result.articlesCreated++;
+      if (articleId) {
+        await autoTagArticle(articleId, meta.sourceSlug);
+        result.articlesCreated++;
+      }
     }
 
     // ユニークアイテムから記事を生成
@@ -169,8 +263,11 @@ export async function runDailyJob(): Promise<DailyJobResult> {
       const meta = rawItemsMap.get(item.id);
       if (!meta) continue;
 
-      await createArticleFromRawItem(item, meta, [item.id]);
-      result.articlesCreated++;
+      const articleId = await createArticleFromRawItem(item, meta, [item.id]);
+      if (articleId) {
+        await autoTagArticle(articleId, meta.sourceSlug);
+        result.articlesCreated++;
+      }
     }
   }
 
@@ -196,7 +293,7 @@ async function createArticleFromRawItem(
     sourceName: string;
   },
   rawItemIds: string[]
-) {
+): Promise<string | null> {
   // スコアリング
   const scores = scoreArticle({
     sourceType: meta.sourceType as "OFFICIAL" | "RSS" | "GITHUB" | "X",
@@ -220,7 +317,7 @@ async function createArticleFromRawItem(
   const existingArticle = await prisma.article.findUnique({
     where: { slug },
   });
-  if (existingArticle) return;
+  if (existingArticle) return null;
 
   // TopicCluster作成
   let topicClusterId: string | undefined;
@@ -242,7 +339,7 @@ async function createArticleFromRawItem(
   }
 
   // 記事作成（下書き状態）
-  await prisma.article.create({
+  const article = await prisma.article.create({
     data: {
       slug,
       title: candidate.title,
@@ -264,6 +361,8 @@ async function createArticleFromRawItem(
       topicClusterId,
     },
   });
+
+  return article.id;
 }
 
 function generateSlug(title: string): string {

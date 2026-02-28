@@ -108,6 +108,32 @@ async function main() {
   // ===== ソース =====
   const sources = await Promise.all([
     prisma.source.upsert({
+      where: { slug: "chatgpt-release-notes-ja" },
+      update: {},
+      create: {
+        name: "ChatGPT リリースノート（日本語）",
+        slug: "chatgpt-release-notes-ja",
+        type: "OFFICIAL",
+        url: "https://help.openai.com/ja-jp/articles/6825453-chatgpt-%E3%83%AA%E3%83%AA%E3%83%BC%E3%82%B9%E3%83%8E%E3%83%BC%E3%83%88",
+        frequency: "DAILY",
+        trustScore: 95,
+        legalNotes: "公式ヘルプページ。要約・引用のみ。全文転載禁止。",
+      },
+    }),
+    prisma.source.upsert({
+      where: { slug: "chatgpt-release-notes-en" },
+      update: {},
+      create: {
+        name: "ChatGPT Release Notes (EN)",
+        slug: "chatgpt-release-notes-en",
+        type: "OFFICIAL",
+        url: "https://help.openai.com/en/articles/6825453-chatgpt-release-notes",
+        frequency: "DAILY",
+        trustScore: 95,
+        legalNotes: "公式ヘルプページ。要約・引用のみ。",
+      },
+    }),
+    prisma.source.upsert({
       where: { slug: "openai-developers-changelog" },
       update: {},
       create: {
@@ -128,7 +154,7 @@ async function main() {
         name: "Claude Developer Platform Release Notes",
         slug: "claude-platform-release-notes",
         type: "OFFICIAL",
-        url: "https://platform.claude.com/docs/en/release-notes/overview",
+        url: "https://docs.anthropic.com/en/docs/about-claude/models",
         frequency: "DAILY",
         trustScore: 95,
         legalNotes: "公式リリースノート。",
@@ -154,23 +180,23 @@ async function main() {
         name: "Gemini アプリ リリースノート（日本語）",
         slug: "gemini-app-release-notes-ja",
         type: "OFFICIAL",
-        url: "https://gemini.google/jp/release-notes/?hl=ja",
+        url: "https://blog.google/products/gemini/",
         frequency: "DAILY",
         trustScore: 95,
         legalNotes: "公式リリースノート。",
       },
     }),
     prisma.source.upsert({
-      where: { slug: "chatgpt-release-notes-ja" },
+      where: { slug: "gemini-api-changelog" },
       update: {},
       create: {
-        name: "ChatGPT リリースノート（日本語）",
-        slug: "chatgpt-release-notes-ja",
+        name: "Gemini API Changelog",
+        slug: "gemini-api-changelog",
         type: "OFFICIAL",
-        url: "https://help.openai.com/ja-jp/articles/6825453-chatgpt-%E3%83%AA%E3%83%AA%E3%83%BC%E3%82%B9%E3%83%8E%E3%83%BC%E3%83%88",
+        url: "https://ai.google.dev/gemini-api/docs/changelog",
         frequency: "DAILY",
-        trustScore: 95,
-        legalNotes: "公式ヘルプページ。要約・引用のみ。全文転載禁止。",
+        trustScore: 90,
+        legalNotes: "公式API changelog。",
       },
     }),
   ]);

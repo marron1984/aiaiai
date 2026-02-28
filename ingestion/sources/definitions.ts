@@ -13,6 +13,8 @@ export interface SourceDefinition {
   trustScore: number;
   frequency: "HOURLY" | "DAILY" | "WEEKLY";
   legalNotes?: string;
+  /** 自動タグ付け用: プロダクトタグのslug */
+  productTagSlugs: string[];
 }
 
 export const MVP_SOURCES: SourceDefinition[] = [
@@ -26,6 +28,7 @@ export const MVP_SOURCES: SourceDefinition[] = [
     trustScore: 95,
     frequency: "DAILY",
     legalNotes: "公式ヘルプページ。要約・引用のみ。全文転載禁止。",
+    productTagSlugs: ["chatgpt"],
   },
   {
     name: "ChatGPT Release Notes (EN)",
@@ -36,6 +39,7 @@ export const MVP_SOURCES: SourceDefinition[] = [
     trustScore: 95,
     frequency: "DAILY",
     legalNotes: "公式ヘルプページ。要約・引用のみ。",
+    productTagSlugs: ["chatgpt"],
   },
   {
     name: "OpenAI Developers Changelog",
@@ -47,6 +51,7 @@ export const MVP_SOURCES: SourceDefinition[] = [
     trustScore: 95,
     frequency: "DAILY",
     legalNotes: "公式Developer changelog。RSS配信あり。",
+    productTagSlugs: ["openai-api"],
   },
 
   // === Anthropic ===
@@ -54,11 +59,12 @@ export const MVP_SOURCES: SourceDefinition[] = [
     name: "Claude Developer Platform Release Notes",
     slug: "claude-platform-release-notes",
     type: "OFFICIAL",
-    url: "https://platform.claude.com/docs/en/release-notes/overview",
+    url: "https://docs.anthropic.com/en/docs/about-claude/models",
     fetchMethod: "html",
     trustScore: 95,
     frequency: "DAILY",
     legalNotes: "公式リリースノート。",
+    productTagSlugs: ["claude"],
   },
   {
     name: "Claude Code GitHub Releases",
@@ -70,6 +76,7 @@ export const MVP_SOURCES: SourceDefinition[] = [
     frequency: "DAILY",
     legalNotes:
       "GitHub REST API利用。レート制限（未認証60回/時）を遵守。",
+    productTagSlugs: ["claude-code", "claude"],
   },
 
   // === Google Gemini ===
@@ -77,11 +84,12 @@ export const MVP_SOURCES: SourceDefinition[] = [
     name: "Gemini アプリ リリースノート（日本語）",
     slug: "gemini-app-release-notes-ja",
     type: "OFFICIAL",
-    url: "https://gemini.google/jp/release-notes/?hl=ja",
+    url: "https://blog.google/products/gemini/",
     fetchMethod: "html",
     trustScore: 95,
     frequency: "DAILY",
     legalNotes: "公式リリースノート。",
+    productTagSlugs: ["gemini"],
   },
   {
     name: "Gemini API Changelog",
@@ -92,5 +100,6 @@ export const MVP_SOURCES: SourceDefinition[] = [
     trustScore: 90,
     frequency: "DAILY",
     legalNotes: "公式API changelog。",
+    productTagSlugs: ["gemini"],
   },
 ];
